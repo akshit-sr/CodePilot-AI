@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 import respx
@@ -17,10 +19,12 @@ def model_response(content: str) -> dict:
 def test_health_and_review_contract():
     route = respx.post(app.settings.model_url).mock(return_value=httpx.Response(200, json=model_response('{"findings": [], "improved_code": null}')))
     assert client.get("/health").json() == {"status": "ok"}
+    assert "Review your Python code" in client.get("/").text
     response = client.post("/review", json={"code": "print('ok')", "filename": "main.py"})
     assert response.status_code == 200
     assert response.json() == {"findings": [], "improved_code": None}
     assert route.called
+    assert json.loads(route.calls.last.request.content)["reasoning_effort"] == "none"
 
 
 @pytest.mark.parametrize(("code", "status", "detail"), [("def broken(:", 400, "syntax_error"), ("x = 1", 422, "unsupported_language")])

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodePilot AI · Review</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #0c1220; color: #e9eef8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    main { max-width: 1100px; margin: 0 auto; padding: 42px 22px 70px; }
+    header { margin-bottom: 30px; }
+    .eyebrow { color: #72d6b2; font-size: .76rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 9px 0; font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -.05em; }
+    .intro { color: #a9b6ce; margin: 0; line-height: 1.6; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 18px; align-items: start; }
+    .panel { background: #151e30; border: 1px solid #2a3850; border-radius: 18px; padding: 22px; box-shadow: 0 18px 45px #060a1438; }
+    .panel h2 { font-size: 1.1rem; margin: 0 0 17px; }
+    label { display: block; margin: 0 0 8px; color: #c4cfe0; font-size: .85rem; font-weight: 700; }
+    input, textarea { width: 100%; background: #0d1525; border: 1px solid #35445d; border-radius: 10px; color: #eef4ff; outline: none; }
+    input:focus, textarea:focus { border-color: #70d7b2; box-shadow: 0 0 0 3px #70d7b230; }
+    input { padding: 11px 13px; margin-bottom: 18px; }
+    textarea { min-height: 370px; resize: vertical; padding: 15px; font: .9rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 4; }
+    .actions { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 16px; }
+    .hint { color: #92a1bb; font-size: .79rem; }
+    button { border: 0; border-radius: 10px; background: #6de0b3; color: #08211c; font: inherit; font-weight: 800; padding: 12px 19px; cursor: pointer; }
+    button:hover { background: #8cf0c8; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .result-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .result-header h2 { margin-bottom: 0; }
+    .badge { border-radius: 99px; padding: 5px 10px; background: #26334b; color: #b9c8dd; font-size: .75rem; font-weight: 700; }
+    #status { color: #a9b6ce; line-height: 1.5; margin: 17px 0 0; }
+    #status.error { color: #ffadad; }
+    .finding { border-top: 1px solid #2a3850; padding: 16px 0; }
+    .finding:first-child { margin-top: 17px; }
+    .finding strong { font-size: .95rem; }
+    .finding p { color: #c0cbe0; line-height: 1.5; margin: 9px 0 0; white-space: pre-wrap; }
+    .meta { color: #8cddbc; font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 7px; }
+    #improved-section { border-top: 1px solid #2a3850; margin-top: 10px; padding-top: 17px; }
+    #improved-section h3 { font-size: .95rem; margin: 0 0 11px; }
+    pre { overflow: auto; background: #0d1525; border: 1px solid #35445d; border-radius: 10px; padding: 15px; font: .83rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    [hidden] { display: none !important; }
+    @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } main { padding-top: 28px; } textarea { min-height: 280px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">CodePilot AI</div>
+      <h1>Review your Python code</h1>
+      <p class="intro">Paste a snippet, run a review, and inspect the findings from the local model.</p>
+    </header>
+    <div class="layout">
+      <form class="panel" id="review-form">
+        <h2>Source code</h2>
+        <label for="filename">Filename <span class="hint">(optional)</span></label>
+        <input id="filename" name="filename" placeholder="example.py" autocomplete="off">
+        <label for="code">Python code</label>
+        <textarea id="code" name="code" required spellcheck="false" placeholder="Paste Python code here..."></textarea>
+        <div class="actions">
+          <span class="hint">Python files only · 100 KB maximum</span>
+          <button id="submit" type="submit">Review code</button>
+        </div>
+      </form>
+      <section class="panel" aria-live="polite" aria-busy="false" id="results">
+        <div class="result-header"><h2>Review results</h2><span class="badge" id="count" hidden></span></div>
+        <p id="status">Your results will appear here after you run a review.</p>
+        <div id="findings"></div>
+        <div id="improved-section" hidden><h3>Suggested improved code</h3><pre id="improved"></pre></div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const form = document.querySelector("#review-form");
+    const button = document.querySelector("#submit");
+    const results = document.querySelector("#results");
+    const status = document.querySelector("#status");
+    const findings = document.querySelector("#findings");
+    const count = document.querySelector("#count");
+    const improvedSection = document.querySelector("#improved-section");
+    const errors = {
+      syntax_error: "The Python code has a syntax error. Fix it and try again.",
+      code_too_large: "The code is too large. Submit less than 100 KB.",
+      model_unavailable: "The local model is unavailable. Start the model service and try again.",
+      backend_unavailable: "The review API is unavailable. Start the backend and try again.",
+      model_timeout: "The model took too long to respond. Try again.",
+      malformed_model_output: "The model returned an invalid review. Try again."
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      results.setAttribute("aria-busy", "true");
+      status.className = "";
+      status.textContent = "Reviewing code…";
+      findings.replaceChildren();
+      count.hidden = true;
+      improvedSection.hidden = true;
+      try {
+        const response = await fetch("/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: document.querySelector("#code").value,
+            language: "python",
+            filename: document.querySelector("#filename").value.trim() || null
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(errors[data.detail] || `Review failed (HTTP ${response.status}).`);
+        count.textContent = `${data.findings.length} finding${data.findings.length === 1 ? "" : "s"}`;
+        count.hidden = false;
+        status.textContent = data.findings.length ? "Review complete." : "No findings returned by the model.";
+        for (const finding of data.findings) {
+          const article = document.createElement("article");
+          article.className = "finding";
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `${finding.severity} · line ${finding.line}, column ${finding.column}`;
+          const title = document.createElement("strong");
+          title.textContent = finding.type;
+          const explanation = document.createElement("p");
+          explanation.textContent = finding.explanation;
+          const fix = document.createElement("p");
+          fix.textContent = `Suggested fix: ${finding.suggested_fix}`;
+          article.append(meta, title, explanation, fix);
+          findings.append(article);
+        }
+        if (data.improved_code) {
+          document.querySelector("#improved").textContent = data.improved_code;
+          improvedSection.hidden = false;
+        }
+      } catch (error) {
+        status.className = "error";
+        status.textContent = error.message || "Could not reach the review service.";
+      } finally {
+        button.disabled = false;
+        results.setAttribute("aria-busy", "false");
+      }
+    });
+  </script>
+</body>
+</html>
