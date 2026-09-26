@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from tree_sitter import Language, Parser
@@ -50,6 +52,7 @@ class ModelOutput(BaseModel):
 app = FastAPI(title="CodePilot AI Review Service", version="0.1.0")
 settings = Settings()
 PYTHON = Language(tree_sitter_python.language())
+FRONTEND = Path(__file__).with_name("frontend.html")
 
 
 def syntax_error(code: str) -> bool:
@@ -77,6 +80,7 @@ async def call_model(request: ReviewRequest) -> ModelOutput:
             {"role": "user", "content": prompt_for(request)},
         ],
         "temperature": 0,
+        "reasoning_effort": "none",
         "response_format": {"type": "json_object"},
     }
     try:
@@ -97,6 +101,11 @@ async def call_model(request: ReviewRequest) -> ModelOutput:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/", response_class=FileResponse)
+def frontend() -> FileResponse:
+    return FileResponse(FRONTEND)
 
 
 @app.post("/review", response_model=ReviewResponse)
