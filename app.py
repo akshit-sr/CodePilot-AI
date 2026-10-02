@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,8 @@ import tree_sitter_python
 
 
 class Settings(BaseSettings):
+    primary_model_url: str = "https://aging-findarticles-hobby-affairs.trycloudflare.com/v1/chat/completions"
+    primary_model_name: str = "qwen3.8-27b-uncensored-mtp:latest"
     model_url: str = "http://127.0.0.1:8080/v1/chat/completions"
     model_timeout_seconds: float = 120.0
     max_code_size: int = 100_000
@@ -49,6 +52,7 @@ class ModelOutput(BaseModel):
     improved_code: str | None = None
 
 
+log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="CodePilot AI Review Service", version="0.1.0")
 settings = Settings()
 PYTHON = Language(tree_sitter_python.language())
@@ -73,8 +77,23 @@ SOURCE:
 
 
 async def call_model(request: ReviewRequest) -> ModelOutput:
+    backends = [
+        (settings.primary_model_url, settings.primary_model_name),
+        (settings.model_url, settings.model_name),
+    ]
+    for url, name in backends[:-1]:
+        try:
+            result = await call_backend(request, url, name)
+            log.info("served by primary model %s", name)
+            return result
+        except HTTPException as exc:
+            log.warning("primary model %s failed (%s); FALLING BACK to local %s", name, exc.detail, backends[-1][1])
+    return await call_backend(request, *backends[-1])
+
+
+async def call_backend(request: ReviewRequest, url: str, model: str) -> ModelOutput:
     payload = {
-        "model": settings.model_name,
+        "model": model,
         "messages": [
             {"role": "system", "content": "You are a precise code reviewer."},
             {"role": "user", "content": prompt_for(request)},
@@ -85,7 +104,7 @@ async def call_model(request: ReviewRequest) -> ModelOutput:
     }
     try:
         async with httpx.AsyncClient(timeout=settings.model_timeout_seconds) as client:
-            response = await client.post(settings.model_url, json=payload)
+            response = await client.post(url, json=payload)
             response.raise_for_status()
     except httpx.TimeoutException as exc:
         raise HTTPException(504, "model_timeout") from exc

@@ -15,6 +15,20 @@ def model_response(content: str) -> dict:
     return {"choices": [{"message": {"content": content}}]}
 
 
+@pytest.fixture(autouse=True)
+def single_backend(monkeypatch):
+    monkeypatch.setattr(app.settings, "primary_model_url", app.settings.model_url)
+
+
+@respx.mock
+def test_falls_back_to_local_model(monkeypatch):
+    monkeypatch.setattr(app.settings, "primary_model_url", "https://primary.test/v1/chat/completions")
+    respx.post("https://primary.test/v1/chat/completions").mock(side_effect=httpx.ConnectError("down"))
+    local = respx.post(app.settings.model_url).mock(return_value=httpx.Response(200, json=model_response('{"findings": []}')))
+    assert client.post("/review", json={"code": "x = 1"}).status_code == 200
+    assert json.loads(local.calls.last.request.content)["model"] == "qwen3.5-9b"
+
+
 @respx.mock
 def test_health_and_review_contract():
     route = respx.post(app.settings.model_url).mock(return_value=httpx.Response(200, json=model_response('{"findings": [], "improved_code": null}')))
