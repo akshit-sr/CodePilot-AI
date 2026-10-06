@@ -17,9 +17,9 @@
     .panel { background: #151e30; border: 1px solid #2a3850; border-radius: 18px; padding: 22px; box-shadow: 0 18px 45px #060a1438; }
     .panel h2 { font-size: 1.1rem; margin: 0 0 17px; }
     label { display: block; margin: 0 0 8px; color: #c4cfe0; font-size: .85rem; font-weight: 700; }
-    input, textarea { width: 100%; background: #0d1525; border: 1px solid #35445d; border-radius: 10px; color: #eef4ff; outline: none; }
-    input:focus, textarea:focus { border-color: #70d7b2; box-shadow: 0 0 0 3px #70d7b230; }
-    input { padding: 11px 13px; margin-bottom: 18px; }
+    input, select, textarea { width: 100%; background: #0d1525; border: 1px solid #35445d; border-radius: 10px; color: #eef4ff; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: #70d7b2; box-shadow: 0 0 0 3px #70d7b230; }
+    input, select { padding: 11px 13px; margin-bottom: 18px; font: inherit; }
     textarea { min-height: 370px; resize: vertical; padding: 15px; font: .9rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 4; }
     .actions { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 16px; }
     .hint { color: #92a1bb; font-size: .79rem; }
@@ -47,18 +47,20 @@
   <main>
     <header>
       <div class="eyebrow">CodePilot AI</div>
-      <h1>Review your Python code</h1>
+      <h1>Review your code</h1>
       <p class="intro">Paste a snippet, run a review, and inspect the findings from the local model.</p>
     </header>
     <div class="layout">
       <form class="panel" id="review-form">
         <h2>Source code</h2>
-        <label for="filename">Filename <span class="hint">(optional)</span></label>
-        <input id="filename" name="filename" placeholder="example.py" autocomplete="off">
-        <label for="code">Python code</label>
-        <textarea id="code" name="code" required spellcheck="false" placeholder="Paste Python code here..."></textarea>
+        <label for="file">File <span class="hint">(optional)</span></label>
+        <input id="file" name="file" type="file">
+        <label for="language">Language</label>
+        <select id="language" name="language"><option value="python">Python</option></select>
+        <label for="code">Code</label>
+        <textarea id="code" name="code" required spellcheck="false" placeholder="Paste code here..."></textarea>
         <div class="actions">
-          <span class="hint">Python files only · 100 KB maximum</span>
+          <span class="hint">100 KB maximum</span>
           <button id="submit" type="submit">Review code</button>
         </div>
       </form>
@@ -79,13 +81,29 @@
     const count = document.querySelector("#count");
     const improvedSection = document.querySelector("#improved-section");
     const errors = {
-      syntax_error: "The Python code has a syntax error. Fix it and try again.",
+      syntax_error: "The code has a syntax error for the selected language. Fix it and try again.",
+      unsupported_language: "That language is not supported.",
       code_too_large: "The code is too large. Submit less than 100 KB.",
       model_unavailable: "The local model is unavailable. Start the model service and try again.",
       backend_unavailable: "The review API is unavailable. Start the backend and try again.",
       model_timeout: "The model took too long to respond. Try again.",
       malformed_model_output: "The model returned an invalid review. Try again."
     };
+
+    const language = document.querySelector("#language");
+    fetch("/languages").then((r) => r.json()).then((langs) => {
+      language.replaceChildren(...Object.entries(langs).map(([id, name]) => new Option(name, id)));
+    }).catch(() => {});
+
+    const fileInput = document.querySelector("#file");
+    const extensions = { py: "python", js: "javascript", mjs: "javascript", ts: "typescript", java: "java", c: "c", h: "c", cpp: "cpp", cc: "cpp", hpp: "cpp", cs: "csharp", go: "go", rs: "rust", php: "php", rb: "ruby", kt: "kotlin" };
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      document.querySelector("#code").value = await file.text();
+      const detected = extensions[file.name.split(".").pop().toLowerCase()];
+      if (detected) language.value = detected;
+    });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -102,8 +120,8 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             code: document.querySelector("#code").value,
-            language: "python",
-            filename: document.querySelector("#filename").value.trim() || null
+            language: language.value,
+            filename: fileInput.files[0]?.name || null
           })
         });
         const data = await response.json();
