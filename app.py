@@ -10,8 +10,22 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from tree_sitter import Language, Parser
-import tree_sitter_python
+from tree_sitter_language_pack import get_parser
+
+LANGUAGES = {
+    "python": "Python",
+    "javascript": "JavaScript",
+    "typescript": "TypeScript",
+    "java": "Java",
+    "c": "C",
+    "cpp": "C++",
+    "csharp": "C#",
+    "go": "Go",
+    "rust": "Rust",
+    "php": "PHP",
+    "ruby": "Ruby",
+    "kotlin": "Kotlin",
+}
 
 
 class Settings(BaseSettings):
@@ -55,23 +69,22 @@ class ModelOutput(BaseModel):
 log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="CodePilot AI Review Service", version="0.1.0")
 settings = Settings()
-PYTHON = Language(tree_sitter_python.language())
 FRONTEND = Path(__file__).with_name("frontend.html")
 
 
-def syntax_error(code: str) -> bool:
-    parser = Parser(PYTHON)
-    return parser.parse(code.encode()).root_node.has_error
+def syntax_error(code: str, language: str) -> bool:
+    return get_parser(language).parse(code.encode()).root_node.has_error
 
 
 def prompt_for(request: ReviewRequest) -> str:
-    filename = request.filename or "untitled.py"
-    return f"""Review this Python source file ({filename}). Return only valid JSON matching this schema:
+    filename = request.filename or "untitled"
+    language = request.language.lower()
+    return f"""Review this {LANGUAGES[language]} source file ({filename}). Return only valid JSON matching this schema:
 {{"findings":[{{"type":"string","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}}],"improved_code":"string or null"}}
 Report actionable bugs, security issues, and maintainability problems. Use 1-based line and column numbers.
 
 SOURCE:
-```python
+```{language}
 {request.code}
 ```"""
 
@@ -127,13 +140,18 @@ def frontend() -> FileResponse:
     return FileResponse(FRONTEND)
 
 
+@app.get("/languages")
+def languages() -> dict[str, str]:
+    return LANGUAGES
+
+
 @app.post("/review", response_model=ReviewResponse)
 async def review(request: ReviewRequest) -> ReviewResponse:
-    if request.language.lower() != "python":
+    if request.language.lower() not in LANGUAGES:
         raise HTTPException(422, "unsupported_language")
     if len(request.code.encode()) > settings.max_code_size:
         raise HTTPException(413, "code_too_large")
-    if syntax_error(request.code):
+    if syntax_error(request.code, request.language.lower()):
         raise HTTPException(400, "syntax_error")
     return await call_model(request)
 

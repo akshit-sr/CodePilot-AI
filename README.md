@@ -1,14 +1,15 @@
 # CodePilot AI Review Service
 
-A FastAPI service that reviews Python source code with a Qwen model and returns
+A FastAPI service that reviews source code with a Qwen model and returns
 structured findings (type, severity, line, column, explanation, suggested fix)
 plus optional improved code. It ships with a single-page frontend and can be
 published from your own computer through a Cloudflare Tunnel.
 
 ## How it works
 
-1. `POST /review` validates the request: Python only, size limit, and a
-   tree-sitter syntax check, so broken code is rejected before reaching a model.
+1. `POST /review` validates the request: supported language, size limit, and
+   a tree-sitter syntax check for that language, so broken code is rejected
+   before reaching a model.
 2. The code is sent to the **primary** model (`qwen3.8-27b-uncensored-mtp`, a
    remote OpenAI-compatible endpoint).
 3. If the primary fails for any reason (unreachable, timeout, malformed
@@ -16,6 +17,22 @@ published from your own computer through a Cloudflare Tunnel.
    model (`qwen3.5-9b` on llama-server at `127.0.0.1:8080`).
 4. The model's JSON reply is validated against a strict schema before it is
    returned.
+
+## Supported languages
+
+| `language` value | Language   | `language` value | Language |
+| ---------------- | ---------- | ---------------- | -------- |
+| `python`         | Python     | `csharp`         | C#       |
+| `javascript`     | JavaScript | `go`             | Go       |
+| `typescript`     | TypeScript | `rust`           | Rust     |
+| `java`           | Java       | `php`            | PHP      |
+| `c`              | C          | `ruby`           | Ruby     |
+| `cpp`            | C++        | `kotlin`         | Kotlin   |
+
+Values are case-insensitive. Grammars come from `tree-sitter-language-pack`,
+which downloads each one the first time it is used and caches it, so the first
+review in a language needs internet access. To add a language, add its pack
+name and display name to `LANGUAGES` in `app.py`.
 
 ## Quick start
 
@@ -34,7 +51,8 @@ together, use `.\start.ps1` — see [RUN.md](RUN.md).
 | ------ | --------- | ------------------------------- |
 | GET    | `/`       | Review page (`frontend.html`)   |
 | GET    | `/health` | Liveness check                  |
-| POST   | `/review` | Review a Python source file     |
+| GET    | `/languages` | Supported languages (id → name) |
+| POST   | `/review` | Review a source file            |
 | GET    | `/docs`   | OpenAPI docs                    |
 
 Request:
@@ -67,9 +85,9 @@ Errors are returned as `{"detail": "<code>"}`:
 
 | Status | Detail                   | Cause                                  |
 | ------ | ------------------------ | -------------------------------------- |
-| 400    | `syntax_error`           | Code does not parse as Python          |
+| 400    | `syntax_error`           | Code does not parse in that language   |
 | 413    | `code_too_large`         | Code exceeds `CODEPILOT_MAX_CODE_SIZE` |
-| 422    | `unsupported_language`   | `language` is not `python`             |
+| 422    | `unsupported_language`   | `language` is not in the list above    |
 | 502    | `malformed_model_output` | Model reply did not match the schema   |
 | 503    | `model_unavailable`      | Model endpoint unreachable or errored  |
 | 504    | `model_timeout`          | Model did not answer in time           |
