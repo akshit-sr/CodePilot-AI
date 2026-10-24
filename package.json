@@ -2,9 +2,19 @@
   "name": "codepilot-review-service",
   "private": true,
   "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
     "tunnel": "cloudflared tunnel --url http://127.0.0.1:8000"
   },
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
   "devDependencies": {
-    "cloudflared": "^0.7.3"
+    "@vitejs/plugin-react": "^6.1.2",
+    "cloudflared": "^0.7.3",
+    "vite": "^8.3.5"
   }
 }

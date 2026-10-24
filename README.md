@@ -37,6 +37,8 @@ name and display name to `LANGUAGES` in `app.py`.
 ## Quick start
 
 ```powershell
+npm install
+npm run build
 uv sync
 uv run uvicorn app:app --reload
 ```
@@ -49,7 +51,7 @@ together, use `.\start.ps1` — see [RUN.md](RUN.md).
 
 | Method | Path      | Purpose                         |
 | ------ | --------- | ------------------------------- |
-| GET    | `/`       | Review page (`frontend.html`)   |
+| GET    | `/`       | Review page (`frontend/index.html`)   |
 | GET    | `/health` | Liveness check                  |
 | GET    | `/languages` | Supported languages (id → name) |
 | POST   | `/review` | Review a source file            |
@@ -131,7 +133,9 @@ The tests mock the model endpoints, so no model needs to be running.
 | File             | Purpose                                                     |
 | ---------------- | ----------------------------------------------------------- |
 | `app.py`         | FastAPI app, validation, model calls and fallback           |
-| `frontend.html`  | Temporary review page served at `/`                         |
+| `frontend/src/main.jsx` | React review interface                         |
+| `frontend/src/styles.css` | Frontend styles                              |
+| `frontend/dist/` | Built frontend served by FastAPI                       |
 | `run_service.py` | Starts llama-server and the API together                    |
 | `start.ps1`      | Starts everything and opens a Cloudflare tunnel             |
 | `test_app.py`    | API tests                                                   |
