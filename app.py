@@ -69,7 +69,7 @@ class ModelOutput(BaseModel):
 log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="CodePilot AI Review Service", version="0.1.0")
 settings = Settings()
-FRONTEND = Path(__file__).with_name("frontend.html")
+FRONTEND = Path(__file__).parent / "frontend" / "index.html"
 
 
 def syntax_error(code: str, language: str) -> bool:
