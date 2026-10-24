@@ -33,7 +33,10 @@ def test_falls_back_to_local_model(monkeypatch):
 def test_health_and_review_contract():
     route = respx.post(app.settings.model_url).mock(return_value=httpx.Response(200, json=model_response('{"findings": [], "improved_code": null}')))
     assert client.get("/health").json() == {"status": "ok"}
-    assert "Review your code" in client.get("/").text
+    frontend = client.get("/")
+    assert frontend.status_code == 200
+    assert 'id="root"' in frontend.text
+    assert "/assets/" in frontend.text
     assert client.get("/languages").json() == app.LANGUAGES
     response = client.post("/review", json={"code": "print('ok')", "filename": "main.py"})
     assert response.status_code == 200
