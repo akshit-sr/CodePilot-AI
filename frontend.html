@@ -3,159 +3,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CodePilot AI · Review</title>
+  <meta name="theme-color" content="#0b0d12">
+  <title>CodePilot — Code review, in focus</title>
   <style>
-    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #0c1220; color: #e9eef8; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; }
-    main { max-width: 1100px; margin: 0 auto; padding: 42px 22px 70px; }
-    header { margin-bottom: 30px; }
-    .eyebrow { color: #72d6b2; font-size: .76rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-    h1 { margin: 9px 0; font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -.05em; }
-    .intro { color: #a9b6ce; margin: 0; line-height: 1.6; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 18px; align-items: start; }
-    .panel { background: #151e30; border: 1px solid #2a3850; border-radius: 18px; padding: 22px; box-shadow: 0 18px 45px #060a1438; }
-    .panel h2 { font-size: 1.1rem; margin: 0 0 17px; }
-    label { display: block; margin: 0 0 8px; color: #c4cfe0; font-size: .85rem; font-weight: 700; }
-    input, select, textarea { width: 100%; background: #0d1525; border: 1px solid #35445d; border-radius: 10px; color: #eef4ff; outline: none; }
-    input:focus, select:focus, textarea:focus { border-color: #70d7b2; box-shadow: 0 0 0 3px #70d7b230; }
-    input, select { padding: 11px 13px; margin-bottom: 18px; font: inherit; }
-    textarea { min-height: 370px; resize: vertical; padding: 15px; font: .9rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 4; }
-    .actions { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 16px; }
-    .hint { color: #92a1bb; font-size: .79rem; }
-    button { border: 0; border-radius: 10px; background: #6de0b3; color: #08211c; font: inherit; font-weight: 800; padding: 12px 19px; cursor: pointer; }
-    button:hover { background: #8cf0c8; }
-    button:disabled { opacity: .55; cursor: wait; }
-    .result-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .result-header h2 { margin-bottom: 0; }
-    .badge { border-radius: 99px; padding: 5px 10px; background: #26334b; color: #b9c8dd; font-size: .75rem; font-weight: 700; }
-    #status { color: #a9b6ce; line-height: 1.5; margin: 17px 0 0; }
-    #status.error { color: #ffadad; }
-    .finding { border-top: 1px solid #2a3850; padding: 16px 0; }
-    .finding:first-child { margin-top: 17px; }
-    .finding strong { font-size: .95rem; }
-    .finding p { color: #c0cbe0; line-height: 1.5; margin: 9px 0 0; white-space: pre-wrap; }
-    .meta { color: #8cddbc; font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 7px; }
-    #improved-section { border-top: 1px solid #2a3850; margin-top: 10px; padding-top: 17px; }
-    #improved-section h3 { font-size: .95rem; margin: 0 0 11px; }
-    pre { overflow: auto; background: #0d1525; border: 1px solid #35445d; border-radius: 10px; padding: 15px; font: .83rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
-    [hidden] { display: none !important; }
-    @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } main { padding-top: 28px; } textarea { min-height: 280px; } }
+    :root{color-scheme:dark;--bg:#0b0d12;--panel:#11141b;--panel2:#151922;--line:#252a35;--muted:#858b99;--text:#f1f2f5;--lime:#c3f36b;--lime-soft:#202b17;--red:#ff8078;--amber:#f5bd62;--blue:#85b8ff;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-synthesis:none;text-rendering:optimizeLegibility}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text)}button,input,select,textarea{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--lime);outline-offset:2px}.shell{max-width:1600px;margin:0 auto;padding:0 32px}.topbar{height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--text);font-weight:750;letter-spacing:-.04em}.brand-mark{width:30px;height:30px;border-radius:9px;background:var(--lime);display:grid;place-items:center;color:#11170a;font-size:16px;font-weight:900}.brand-name{font-size:16px}.brand-name span{color:var(--muted);font-weight:500}.top-actions{display:flex;align-items:center;gap:16px}.api-status{color:#aeb3bd;font-size:12px;display:flex;align-items:center;gap:8px}.dot{width:7px;height:7px;border-radius:50%;background:#707684}.dot.ok{background:var(--lime);box-shadow:0 0 10px #c3f36b66}.top-link{color:#aeb3bd;text-decoration:none;font-size:12px}.top-link:hover{color:var(--lime)}.page{padding:42px 0 64px}.heading{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:25px;gap:20px}.eyebrow{color:var(--lime);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.16em}.heading h1{font-size:clamp(29px,4vw,42px);letter-spacing:-.055em;line-height:1.05;margin:10px 0 9px}.heading p{color:var(--muted);margin:0;font-size:14px;line-height:1.6}.shortcut{color:var(--muted);font-size:11px;white-space:nowrap;padding-bottom:4px}.kbd{border:1px solid #363b46;border-radius:5px;padding:3px 6px;color:#c5c8d0;font-size:10px}.workspace{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,.75fr);gap:16px;align-items:stretch}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}.panel-head{height:59px;padding:0 17px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.panel-title{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700}.panel-title svg{color:#a8aebb}.file-chip{font-size:11px;color:#c5c9d1;background:#1c2029;border:1px solid #2a2f39;padding:5px 8px;border-radius:6px}.file-chip.muted{color:var(--muted)}.editor-tools{display:flex;gap:8px;align-items:center}.select-wrap{position:relative}.select-wrap:after{content:'⌄';position:absolute;right:10px;top:7px;color:#a4aab4;font-size:12px;pointer-events:none}select{appearance:none;color:#dfe1e7;background:#191d25;border:1px solid #303541;border-radius:6px;padding:7px 27px 7px 9px;font-size:11px;min-width:116px}.icon-btn,.subtle-btn{color:#9da3af;background:transparent;border:1px solid transparent;border-radius:6px;padding:7px 9px;font-size:11px}.icon-btn:hover,.subtle-btn:hover{color:var(--text);background:#20242d;border-color:#303541}.editor{height:432px;display:grid;grid-template-columns:48px 1fr;position:relative;background:#0f1117}.gutter{padding:17px 12px 16px 0;text-align:right;overflow:hidden;color:#535966;white-space:pre;font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace;user-select:none}.code-wrap{min-width:0;position:relative}.code-input{display:block;width:100%;height:100%;padding:17px 18px 17px 0;border:0;resize:none;background:transparent;color:#d7d9df;caret-color:var(--lime);font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;tab-size:4;white-space:pre;overflow:auto}.code-input::placeholder{color:#606673}.code-input:focus{outline:none}.editor.dragover{box-shadow:inset 0 0 0 2px var(--lime)}.drag-overlay{display:none;position:absolute;inset:0;background:#10150cdd;z-index:2;place-items:center;color:var(--lime);font-size:13px;font-weight:700}.editor.dragover .drag-overlay{display:grid}.editor-foot{height:39px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 15px;color:#737986;font-size:10px}.foot-left{display:flex;gap:13px}.actions{height:65px;padding:0 15px;display:flex;align-items:center;justify-content:space-between;gap:12px}.hint{color:var(--muted);font-size:11px}.review-btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--lime);color:#12170b;border:0;border-radius:7px;padding:10px 15px;font-size:12px;font-weight:800;transition:transform .15s,background .15s}.review-btn:hover{background:#d3fa8b;transform:translateY(-1px)}.review-btn:disabled{opacity:.7;cursor:wait;transform:none}.review-btn svg{width:14px;height:14px}.results-panel{min-height:566px;display:flex;flex-direction:column}.result-head{padding:17px 17px 15px;border-bottom:1px solid var(--line)}.result-topline{display:flex;justify-content:space-between;align-items:center}.result-title{font-size:13px;font-weight:750}.count-badge{font-size:10px;color:var(--lime);background:var(--lime-soft);padding:5px 8px;border-radius:20px}.result-subtitle{color:var(--muted);font-size:11px;margin-top:7px}.summary{display:flex;gap:7px;margin-top:14px}.severity-pill{font-size:10px;border:1px solid var(--line);border-radius:5px;padding:5px 7px;color:#9da3af}.severity-pill b{font-weight:700;color:var(--text);margin-right:3px}.severity-pill.high b,.severity-pill.critical b{color:var(--red)}.severity-pill.medium b{color:var(--amber)}.severity-pill.low b{color:var(--blue)}.result-body{padding:0 17px 16px;flex:1;overflow:auto;max-height:485px}.empty-state{height:405px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}.empty-icon{width:45px;height:45px;border:1px solid #303541;background:#171a21;border-radius:12px;display:grid;place-items:center;color:#979eaa;margin-bottom:17px}.empty-icon svg{width:20px}.empty-state strong{font-size:12px;font-weight:700}.empty-state p{max-width:230px;color:var(--muted);font-size:11px;line-height:1.7;margin:8px 0 0}.finding{border-bottom:1px solid var(--line);padding:15px 0}.finding:last-child{border-bottom:0}.finding-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}.finding-tag{display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.08em;font-size:9px;font-weight:800}.finding-tag.high,.finding-tag.critical{color:var(--red)}.finding-tag.medium{color:var(--amber)}.finding-tag.low{color:var(--blue)}.finding-tag .severity-dot{width:6px;height:6px;border-radius:50%;background:currentColor}.line-link{color:#858b98;font:10px ui-monospace,monospace;background:#1a1d25;border:1px solid #2a2f39;padding:4px 6px;border-radius:4px}.finding h3{font-size:12px;margin:0 0 6px;text-transform:capitalize}.finding p{color:#aeb3bd;font-size:11px;line-height:1.65;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.fix{margin-top:10px;padding:10px;background:#151922;border:1px solid #242a35;border-radius:6px}.fix-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#838a97;margin-bottom:5px}.fix p{color:#d0d3da}.error-state{color:var(--red);border:1px solid #4a2828;background:#211515;border-radius:7px;padding:12px;margin-top:15px;font-size:11px;line-height:1.6}.success-empty{padding:24px 10px;color:var(--lime);font-size:12px;text-align:center}.improved{border-top:1px solid var(--line);padding:14px 17px 16px}.improved-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.improved-title{font-size:11px;font-weight:700}.copy-btn{font-size:10px;color:#aeb3bd;background:transparent;border:1px solid #303541;padding:5px 8px;border-radius:5px}.copy-btn:hover{color:var(--lime);border-color:#60753d}.improved pre{max-height:170px;overflow:auto;margin:0;padding:11px;background:#0d0f14;border:1px solid #252a35;border-radius:6px;color:#d0d3da;font:10px/1.65 ui-monospace,monospace;white-space:pre}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:900px){.shell{padding:0 22px}.workspace{grid-template-columns:1fr}.results-panel{min-height:430px}.result-body{max-height:none}.empty-state{height:260px}}@media(max-width:520px){.shell{padding:0 14px}.topbar{height:62px}.top-link{display:none}.page{padding-top:30px}.heading{align-items:flex-start}.shortcut{display:none}.workspace{gap:12px}.panel-head{padding:0 12px}.editor{height:360px}.editor-foot{padding:0 10px}.foot-left{gap:8px}.hint{font-size:10px}.actions{padding:0 11px}.summary{flex-wrap:wrap}.result-body{padding:0 13px 14px}}
   </style>
 </head>
 <body>
-  <main>
-    <header>
-      <div class="eyebrow">CodePilot AI</div>
-      <h1>Review your code</h1>
-      <p class="intro">Paste a snippet, run a review, and inspect the findings from the local model.</p>
-    </header>
-    <div class="layout">
-      <form class="panel" id="review-form">
-        <h2>Source code</h2>
-        <label for="file">File <span class="hint">(optional)</span></label>
-        <input id="file" name="file" type="file">
-        <label for="language">Language</label>
-        <select id="language" name="language"><option value="python">Python</option></select>
-        <label for="code">Code</label>
-        <textarea id="code" name="code" required spellcheck="false" placeholder="Paste code here..."></textarea>
-        <div class="actions">
-          <span class="hint">100 KB maximum</span>
-          <button id="submit" type="submit">Review code</button>
-        </div>
-      </form>
-      <section class="panel" aria-live="polite" aria-busy="false" id="results">
-        <div class="result-header"><h2>Review results</h2><span class="badge" id="count" hidden></span></div>
-        <p id="status">Your results will appear here after you run a review.</p>
-        <div id="findings"></div>
-        <div id="improved-section" hidden><h3>Suggested improved code</h3><pre id="improved"></pre></div>
-      </section>
-    </div>
-  </main>
+  <div class="shell">
+    <nav class="topbar" aria-label="Main navigation">
+      <a class="brand" href="/" aria-label="CodePilot home"><span class="brand-mark">⌘</span><span class="brand-name">codepilot<span> / review</span></span></a>
+      <div class="top-actions"><span class="api-status"><span class="dot" id="health-dot"></span><span id="health-label">Checking service</span></span><a class="top-link" href="/docs" target="_blank" rel="noreferrer">API docs ↗</a></div>
+    </nav>
+    <main class="page">
+      <header class="heading"><div><div class="eyebrow">Your AI code reviewer</div><h1>Ship with confidence.</h1><p>Catch bugs, security risks, and rough edges before they reach production.</p></div><div class="shortcut"><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to review</div></header>
+      <div class="workspace">
+        <form class="panel" id="review-form">
+          <div class="panel-head"><div class="panel-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3M8 3v4h4M8 3l8 8M13 3h6a2 2 0 0 1 2 2v6"/></svg>Review source</div><div class="editor-tools"><label for="file" class="subtle-btn" style="margin:0">Open file</label><input id="file" type="file" hidden accept=".py,.js,.mjs,.ts,.java,.c,.h,.cpp,.cc,.hpp,.cs,.go,.rs,.php,.rb,.kt,.txt"><div class="select-wrap"><select id="language" aria-label="Programming language"><option value="python">Python</option></select></div></div></div>
+          <div class="editor" id="editor"><div class="gutter" id="gutter" aria-hidden="true">1</div><div class="code-wrap"><textarea class="code-input" id="code" name="code" required spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Source code" placeholder="Paste your code here, or drop a file to get started…"></textarea></div><div class="drag-overlay">Drop your source file to review</div></div>
+          <div class="editor-foot"><div class="foot-left"><span id="filename-label" class="file-chip muted">untitled</span><span id="line-count">1 line</span></div><span id="char-count">0 / 100 KB</span></div>
+          <div class="actions"><span class="hint">Your code is reviewed privately by your configured model.</span><button class="review-btn" id="submit" type="submit"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2.7 3.2a1 1 0 0 1 1.04-.14l13 6a1 1 0 0 1 0 1.82l-13 6A1 1 0 0 1 5.3 16V4a1 1 0 0 1-2.6-.8Z"/></svg><span>Review code</span><span class="sr-only">(Ctrl+Enter)</span></button></div>
+        </form>
+        <section class="panel results-panel" id="results" aria-live="polite" aria-busy="false">
+          <div class="result-head"><div class="result-topline"><div class="result-title">Review findings</div><span class="count-badge" id="count" hidden></span></div><div class="result-subtitle" id="result-subtitle">Findings will appear here after your review.</div><div class="summary" id="summary" hidden></div></div>
+          <div class="result-body" id="findings"><div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div><strong>Ready when you are</strong><p>Paste a code snippet or open a file, then run your first review.</p></div></div>
+          <section class="improved" id="improved-section" hidden><div class="improved-head"><span class="improved-title">Suggested improved code</span><button type="button" class="copy-btn" id="copy-improved">Copy code</button></div><pre id="improved"></pre></section>
+        </section>
+      </div>
+    </main>
+  </div>
   <script>
-    const form = document.querySelector("#review-form");
-    const button = document.querySelector("#submit");
-    const results = document.querySelector("#results");
-    const status = document.querySelector("#status");
-    const findings = document.querySelector("#findings");
-    const count = document.querySelector("#count");
-    const improvedSection = document.querySelector("#improved-section");
-    const errors = {
-      syntax_error: "The code has a syntax error for the selected language. Fix it and try again.",
-      unsupported_language: "That language is not supported.",
-      code_too_large: "The code is too large. Submit less than 100 KB.",
-      model_unavailable: "The local model is unavailable. Start the model service and try again.",
-      backend_unavailable: "The review API is unavailable. Start the backend and try again.",
-      model_timeout: "The model took too long to respond. Try again.",
-      malformed_model_output: "The model returned an invalid review. Try again."
-    };
-
-    const language = document.querySelector("#language");
-    fetch("/languages").then((r) => r.json()).then((langs) => {
-      language.replaceChildren(...Object.entries(langs).map(([id, name]) => new Option(name, id)));
-    }).catch(() => {});
-
-    const fileInput = document.querySelector("#file");
-    const extensions = { py: "python", js: "javascript", mjs: "javascript", ts: "typescript", java: "java", c: "c", h: "c", cpp: "cpp", cc: "cpp", hpp: "cpp", cs: "csharp", go: "go", rs: "rust", php: "php", rb: "ruby", kt: "kotlin" };
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      document.querySelector("#code").value = await file.text();
-      const detected = extensions[file.name.split(".").pop().toLowerCase()];
-      if (detected) language.value = detected;
-    });
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      button.disabled = true;
-      results.setAttribute("aria-busy", "true");
-      status.className = "";
-      status.textContent = "Reviewing code…";
-      findings.replaceChildren();
-      count.hidden = true;
-      improvedSection.hidden = true;
-      try {
-        const response = await fetch("/review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code: document.querySelector("#code").value,
-            language: language.value,
-            filename: fileInput.files[0]?.name || null
-          })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(errors[data.detail] || `Review failed (HTTP ${response.status}).`);
-        count.textContent = `${data.findings.length} finding${data.findings.length === 1 ? "" : "s"}`;
-        count.hidden = false;
-        status.textContent = data.findings.length ? "Review complete." : "No findings returned by the model.";
-        for (const finding of data.findings) {
-          const article = document.createElement("article");
-          article.className = "finding";
-          const meta = document.createElement("div");
-          meta.className = "meta";
-          meta.textContent = `${finding.severity} · line ${finding.line}, column ${finding.column}`;
-          const title = document.createElement("strong");
-          title.textContent = finding.type;
-          const explanation = document.createElement("p");
-          explanation.textContent = finding.explanation;
-          const fix = document.createElement("p");
-          fix.textContent = `Suggested fix: ${finding.suggested_fix}`;
-          article.append(meta, title, explanation, fix);
-          findings.append(article);
-        }
-        if (data.improved_code) {
-          document.querySelector("#improved").textContent = data.improved_code;
-          improvedSection.hidden = false;
-        }
-      } catch (error) {
-        status.className = "error";
-        status.textContent = error.message || "Could not reach the review service.";
-      } finally {
-        button.disabled = false;
-        results.setAttribute("aria-busy", "false");
-      }
-    });
+    const form=document.querySelector('#review-form'),button=document.querySelector('#submit'),results=document.querySelector('#results'),code=document.querySelector('#code'),language=document.querySelector('#language'),fileInput=document.querySelector('#file'),editor=document.querySelector('#editor'),gutter=document.querySelector('#gutter'),findings=document.querySelector('#findings'),count=document.querySelector('#count'),summary=document.querySelector('#summary'),subtitle=document.querySelector('#result-subtitle'),improvedSection=document.querySelector('#improved-section'),improved=document.querySelector('#improved');
+    const errors={syntax_error:'The code has a syntax error for the selected language. Fix it and try again.',unsupported_language:'That language is not supported.',code_too_large:'The code is larger than the 100 KB limit.',model_unavailable:'Your configured model is unavailable. Start the model service and try again.',backend_unavailable:'The review API is unavailable. Start the backend and try again.',model_timeout:'The model took too long to respond. Try again.',malformed_model_output:'The model returned an invalid review. Try again.'};
+    const extensions={py:'python',js:'javascript',mjs:'javascript',ts:'typescript',java:'java',c:'c',h:'c',cpp:'cpp',cc:'cpp',hpp:'cpp',cs:'csharp',go:'go',rs:'rust',php:'php',rb:'ruby',kt:'kotlin'};let activeFilename='untitled';
+    fetch('/languages').then(r=>{if(!r.ok)throw Error();return r.json()}).then(langs=>language.replaceChildren(...Object.entries(langs).map(([id,name])=>new Option(name,id)))).catch(()=>{});
+    fetch('/health').then(r=>{if(!r.ok)throw Error();return r.json()}).then(()=>{document.querySelector('#health-dot').classList.add('ok');document.querySelector('#health-label').textContent='Service online'}).catch(()=>{document.querySelector('#health-label').textContent='Service unavailable'});
+    function syncEditor(){const lines=code.value.split('\n').length;gutter.textContent=Array.from({length:lines},(_,i)=>i+1).join('\n');document.querySelector('#line-count').textContent=lines+' '+(lines===1?'line':'lines');const bytes=new Blob([code.value]).size;document.querySelector('#char-count').textContent=(bytes/1024).toFixed(bytes<1024?0:1)+' / 100 KB';}
+    code.addEventListener('input',syncEditor);code.addEventListener('scroll',()=>{gutter.scrollTop=code.scrollTop});code.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const start=code.selectionStart,end=code.selectionEnd;code.setRangeText('    ',start,end,'end');code.dispatchEvent(new Event('input'))}});
+    function loadFile(file){if(!file)return;activeFilename=file.name;document.querySelector('#filename-label').textContent=file.name;document.querySelector('#filename-label').classList.remove('muted');file.text().then(text=>{code.value=text;const ext=file.name.split('.').pop().toLowerCase();if(extensions[ext])language.value=extensions[ext];syncEditor()})}
+    fileInput.addEventListener('change',()=>loadFile(fileInput.files[0]));editor.addEventListener('dragover',e=>{e.preventDefault();editor.classList.add('dragover')});editor.addEventListener('dragleave',e=>{if(!editor.contains(e.relatedTarget))editor.classList.remove('dragover')});editor.addEventListener('drop',e=>{e.preventDefault();editor.classList.remove('dragover');loadFile(e.dataTransfer.files[0])});
+    document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();form.requestSubmit()}});
+    function showError(message){findings.replaceChildren();const box=document.createElement('div');box.className='error-state';box.textContent=message;findings.append(box);subtitle.textContent='Review could not be completed.';summary.hidden=true;count.hidden=true;}
+    function severitySummary(items){const rank=['critical','high','medium','low'];summary.replaceChildren();const totals={};items.forEach(item=>{const key=String(item.severity||'low').toLowerCase();totals[key]=(totals[key]||0)+1});rank.forEach(key=>{if(!totals[key])return;const pill=document.createElement('span');pill.className='severity-pill '+key;const bold=document.createElement('b');bold.textContent=totals[key];pill.append(bold,document.createTextNode(key));summary.append(pill)});summary.hidden=items.length===0;}
+    function renderFinding(item){const article=document.createElement('article');article.className='finding';const meta=document.createElement('div');meta.className='finding-meta';const tag=document.createElement('span');const severity=String(item.severity||'low').toLowerCase();tag.className='finding-tag '+severity;const dot=document.createElement('span');dot.className='severity-dot';tag.append(dot,document.createTextNode(severity+' severity'));const loc=document.createElement('span');loc.className='line-link';loc.textContent='L'+item.line+':'+item.column;meta.append(tag,loc);const title=document.createElement('h3');title.textContent=item.type||'Finding';const explanation=document.createElement('p');explanation.textContent=item.explanation||'';article.append(meta,title,explanation);if(item.suggested_fix){const fix=document.createElement('div');fix.className='fix';const label=document.createElement('div');label.className='fix-label';label.textContent='Suggested fix';const text=document.createElement('p');text.textContent=item.suggested_fix;fix.append(label,text);article.append(fix)}return article;}
+    form.addEventListener('submit',async e=>{e.preventDefault();if(!code.value.trim()){code.focus();return}button.disabled=true;button.querySelector('span').textContent='Reviewing…';results.setAttribute('aria-busy','true');findings.replaceChildren();const loading=document.createElement('div');loading.className='empty-state';const title=document.createElement('strong');title.textContent='Review in progress';const desc=document.createElement('p');desc.textContent='Your code is being checked for bugs, risks, and improvements.';loading.append(title,desc);findings.append(loading);summary.hidden=true;count.hidden=true;improvedSection.hidden=true;subtitle.textContent='Analyzing '+activeFilename+'…';try{const response=await fetch('/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code.value,language:language.value,filename:activeFilename==='untitled'?null:activeFilename})});let data;try{data=await response.json()}catch{throw Error('The review API returned an unreadable response.')}if(!response.ok)throw Error(errors[data.detail]||'Review failed (HTTP '+response.status+').');const items=Array.isArray(data.findings)?data.findings:[];findings.replaceChildren();items.forEach(item=>findings.append(renderFinding(item)));if(!items.length){const success=document.createElement('div');success.className='success-empty';success.textContent='✓ No findings. Looking good.';findings.append(success)}count.textContent=items.length+' '+(items.length===1?'finding':'findings');count.hidden=false;subtitle.textContent='Review complete for '+activeFilename+'.';severitySummary(items);if(data.improved_code){improved.textContent=data.improved_code;improvedSection.hidden=false}}catch(error){showError(error.message||'Could not reach the review service.')}finally{button.disabled=false;button.querySelector('span').textContent='Review code';results.setAttribute('aria-busy','false')}});
+    document.querySelector('#copy-improved').addEventListener('click',async e=>{try{await navigator.clipboard.writeText(improved.textContent);e.currentTarget.textContent='Copied!';setTimeout(()=>e.currentTarget.textContent='Copy code',1400)}catch{e.currentTarget.textContent='Copy unavailable'}});syncEditor();
   </script>
 </body>
 </html>
