@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from tree_sitter_language_pack import get_parser
@@ -69,8 +70,9 @@ class ModelOutput(BaseModel):
 log = logging.getLogger("uvicorn.error")
 app = FastAPI(title="CodePilot AI Review Service", version="0.1.0")
 settings = Settings()
-FRONTEND = Path(__file__).parent / "frontend" / "index.html"
-
+FRONTEND = Path(__file__).parent / "frontend" / "dist" / "index.html"
+ASSETS = FRONTEND.parent / "assets"
+app.mount("/assets", StaticFiles(directory=ASSETS), name="frontend-assets")
 
 def syntax_error(code: str, language: str) -> bool:
     return get_parser(language).parse(code.encode()).root_node.has_error
