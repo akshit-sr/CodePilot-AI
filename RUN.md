@@ -5,7 +5,8 @@ uv sync
 .\start.ps1
 ```
 
-The npm `cloudflared` package must be installed once with `npm.cmd install`.
+The npm `cloudflared` package and the frontend build tools must be installed
+once with `npm.cmd install`.
 If npm blocks its install script, `start.ps1` downloads the executable on its
 first run. Do not run `npm.cmd ci` while the tunnel is running; Windows locks
 the executable. After installation, no npm command is needed to start it.

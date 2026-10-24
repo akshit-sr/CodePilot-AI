@@ -47,11 +47,16 @@ This starts only the API on `http://127.0.0.1:8000`; a model endpoint must
 already be reachable. To start the local model, the API, and a public tunnel
 together, use `.\start.ps1` — see [RUN.md](RUN.md).
 
+`frontend/dist/` is committed, so `npm run build` is only needed after editing
+the frontend; the API won't start without `frontend/dist/assets`. For frontend
+work, run `npm run dev` (Vite on `127.0.0.1:5173`, forwarding API calls to `:8000`).
+
 ## Endpoints
 
 | Method | Path      | Purpose                         |
 | ------ | --------- | ------------------------------- |
-| GET    | `/`       | Review page (`frontend/index.html`)   |
+| GET    | `/`       | Review page (`frontend/dist/index.html`) |
+| GET    | `/assets/*` | Built frontend JS/CSS         |
 | GET    | `/health` | Liveness check                  |
 | GET    | `/languages` | Supported languages (id → name) |
 | POST   | `/review` | Review a source file            |
@@ -128,14 +133,21 @@ uv run pytest
 
 The tests mock the model endpoints, so no model needs to be running.
 
+CI (`.github/workflows/ci.yml`) runs `uv run pytest` and `npm ci && npm run build`
+on pull requests to `main` and on pushes to `main` and `feat/**`.
+
 ## Project layout
 
 | File             | Purpose                                                     |
 | ---------------- | ----------------------------------------------------------- |
 | `app.py`         | FastAPI app, validation, model calls and fallback           |
+| `frontend/index.html` | Vite entry page                                     |
 | `frontend/src/main.jsx` | React review interface                         |
 | `frontend/src/styles.css` | Frontend styles                              |
 | `frontend/dist/` | Built frontend served by FastAPI                       |
+| `vite.config.mjs` | Vite config (root, dev forwarding, build output)       |
+| `package.json`   | Frontend and `cloudflared` npm scripts and packages     |
+| `.github/workflows/ci.yml` | CI: Python tests and frontend build          |
 | `run_service.py` | Starts llama-server and the API together                    |
 | `start.ps1`      | Starts everything and opens a Cloudflare tunnel             |
 | `test_app.py`    | API tests                                                   |
