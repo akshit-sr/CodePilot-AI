@@ -99,3 +99,9 @@ def test_malformed_model_output(body):
     assert response.status_code == 502
     assert response.json()["detail"] == "malformed_model_output"
 
+
+
+def test_syntax_error_suggests_language():
+    response = client.post("/review", json={"code": "const x = () => { return 1 }", "language": "python"})
+    assert response.status_code == 400
+    assert response.headers["x-detected-language"] == "javascript"

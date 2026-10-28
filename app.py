@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +31,7 @@ LANGUAGES = {
 
 
 class Settings(BaseSettings):
-    primary_model_url: str = "https://aging-findarticles-hobby-affairs.trycloudflare.com/v1/chat/completions"
+    primary_model_url: str = "https://customs-worldwide-contacting-gerald.trycloudflare.com/v1/chat/completions"
     primary_model_name: str = "qwen3.8-27b-uncensored-mtp:latest"
     model_url: str = "http://127.0.0.1:8080/v1/chat/completions"
     model_timeout_seconds: float = 120.0
@@ -76,6 +77,18 @@ app.mount("/assets", StaticFiles(directory=ASSETS), name="frontend-assets")
 
 def syntax_error(code: str, language: str) -> bool:
     return get_parser(language).parse(code.encode()).root_node.has_error
+
+
+# Tried in order when the selected language fails to parse. PHP, Kotlin and Ruby parsers accept
+# almost anything, so they also need a telltale sign in the code.
+DETECT_ORDER = ["python", "javascript", "typescript", "java", "kotlin", "go", "rust", "csharp", "c", "cpp", "ruby", "php"]
+DETECT_HINTS = {"php": r"<\?php", "kotlin": r"\b(fun|val)\s", "ruby": r"(?m)^\s*end\s*$"}
+
+
+def detect_language(code: str, selected: str) -> str | None:
+    # ponytail: first clean tree-sitter parse wins; swap for a real classifier if guesses are often wrong
+    return next((lang for lang in DETECT_ORDER if lang != selected and re.search(DETECT_HINTS.get(lang, ""), code)
+                 and not syntax_error(code, lang)), None)
 
 
 def prompt_for(request: ReviewRequest) -> str:
@@ -154,7 +167,8 @@ async def review(request: ReviewRequest) -> ReviewResponse:
     if len(request.code.encode()) > settings.max_code_size:
         raise HTTPException(413, "code_too_large")
     if syntax_error(request.code, request.language.lower()):
-        raise HTTPException(400, "syntax_error")
+        guess = detect_language(request.code, request.language.lower())
+        raise HTTPException(400, "syntax_error", headers={"X-Detected-Language": guess} if guess else None)
     return await call_model(request)
 
 

@@ -3,9 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0d1010" />
-    <meta name="description" content="An AI code review workspace for thoughtful, production-ready software." />
-    <title>CodePilot — Code review, in focus</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="theme-color" content="#e9e3d6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121315" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="Write code and get it reviewed by AI, with notes in the margin beside each line." />
+    <title>CodePilot — code review, marked up</title>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem("codepilot.theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch{}</script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,72 +1,262 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ArrowRight, ArrowUpRight, Check, CheckCheck, ChevronDown, CircleHelp, Clock3, Code2, Copy, FileUp, GitBranch, KeyRound, LoaderCircle, Menu, MessageSquareText, Play, Plus, ScanLine, ShieldCheck, Sparkles, WandSparkles, X, Zap } from "lucide-react";
+import { BookOpen, Check, Copy, Eraser, Paperclip, PenLine } from "lucide-react";
+import Editor from "./Editor.jsx";
+import Landing from "./Landing.jsx";
+import Auth from "./Auth.jsx";
+import { Masthead, stored, store } from "./shell.jsx";
+import { SAMPLES } from "./samples.js";
 import "./styles.css";
 
-const SAMPLE = `import requests
+const FALLBACK_LANGUAGES = { python: "Python", javascript: "JavaScript", typescript: "TypeScript", java: "Java", c: "C", cpp: "C++", csharp: "C#", go: "Go", rust: "Rust", php: "PHP", ruby: "Ruby", kotlin: "Kotlin" };
+const EXT = { py: "python", js: "javascript", mjs: "javascript", ts: "typescript", java: "java", c: "c", h: "c", cpp: "cpp", cc: "cpp", hpp: "cpp", cs: "csharp", go: "go", rs: "rust", php: "php", rb: "ruby", kt: "kotlin" };
+const ERRORS = {
+  unsupported_language: "That language isn’t supported yet.",
+  code_too_large: "This file is over the 100 KB limit.",
+  model_unavailable: "The review model is unavailable. Check that the model service is running.",
+  model_timeout: "The model took too long to answer. Try again in a moment.",
+  malformed_model_output: "The model returned an unreadable review. Try again.",
+};
+const ABBR = { python: "PY", javascript: "JS", typescript: "TS", java: "JAVA", c: "C", cpp: "C++", csharp: "C#", go: "GO", rust: "RS", php: "PHP", ruby: "RB", kotlin: "KT" };
+const LEVELS = ["critical", "high", "medium", "low"];
+const LIMIT = 100_000;
+const MOD = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl";
 
-API_KEY = "demo_secret_not_for_production_123"
+const humanize = type => (type || "finding").replace(/[_-]+/g, " ").replace(/^./, c => c.toUpperCase());
+const languageFor = name => EXT[name.split(".").pop().toLowerCase()];
 
-
-def get_user(user_id):
-    url = f"https://api.example.com/users/{user_id}"
-    response = requests.get(url, headers={"Authorization": API_KEY})
-    return response.json()
-
-
-def format_name(user):
-    return user["first_name"] + " " + user["last_name"]`;
-const FALLBACK_LANGUAGES = { python:"Python", javascript:"JavaScript", typescript:"TypeScript", java:"Java", c:"C", cpp:"C++", csharp:"C#", go:"Go", rust:"Rust", php:"PHP", ruby:"Ruby", kotlin:"Kotlin" };
-const EXT = { py:"python", js:"javascript", mjs:"javascript", ts:"typescript", java:"java", c:"c", h:"c", cpp:"cpp", cc:"cpp", hpp:"cpp", cs:"csharp", go:"go", rs:"rust", php:"php", rb:"ruby", kt:"kotlin" };
-const ERRORS = { syntax_error:"There’s a syntax error in this file. Fix it and run the review again.", unsupported_language:"That language isn’t supported yet.", code_too_large:"This file is larger than the 100 KB limit.", model_unavailable:"The configured model is unavailable. Check your model service and try again.", backend_unavailable:"The review API is unavailable. Start the backend and try again.", model_timeout:"The model took too long to respond. Try again in a moment.", malformed_model_output:"The model returned an invalid review. Try again." };
-
-function App() {
-  const [code,setCode]=useState(SAMPLE), [langs,setLangs]=useState(FALLBACK_LANGUAGES), [language,setLanguage]=useState("python"), [filename,setFilename]=useState("auth.py");
-  const [online,setOnline]=useState(null), [loading,setLoading]=useState(false), [findings,setFindings]=useState(null), [improved,setImproved]=useState(null), [error,setError]=useState("");
-  const [dragging,setDragging]=useState(false), [filter,setFilter]=useState("all"), [mobileOpen,setMobileOpen]=useState(false), [copied,setCopied]=useState(false);
-  const textarea=useRef(null), gutter=useRef(null), highlight=useRef(null), upload=useRef(null), lines=code.split("\n");
-  useEffect(()=>{fetch("/languages").then(r=>r.json()).then(setLangs).catch(()=>{});fetch("/health").then(r=>setOnline(r.ok)).catch(()=>setOnline(false));},[]);
-  useEffect(()=>{const key=e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();review();}};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key);});
-  function syncScroll(){if(textarea.current){if(gutter.current)gutter.current.scrollTop=textarea.current.scrollTop;if(highlight.current){highlight.current.scrollTop=textarea.current.scrollTop;highlight.current.scrollLeft=textarea.current.scrollLeft;}}}
-  function insertTab(e){if(e.key!=="Tab")return;e.preventDefault();const el=e.currentTarget,start=el.selectionStart,end=el.selectionEnd;setCode(code.slice(0,start)+"    "+code.slice(end));requestAnimationFrame(()=>{el.selectionStart=el.selectionEnd=start+4;});}
-  async function openFile(file){if(!file)return;setFilename(file.name);const ext=file.name.split(".").pop().toLowerCase();if(EXT[ext])setLanguage(EXT[ext]);setCode(await file.text());setFindings(null);setImproved(null);setError("");}
-  async function review(){if(!code.trim()||loading)return;setLoading(true);setMobileOpen(true);setError("");setFindings(null);setImproved(null);try{const r=await fetch("/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code,language,filename})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(ERRORS[data.detail]||(r.status===502?"The review API is unavailable. Start the backend and try again.":"Review failed (HTTP "+r.status+")."));setFindings(Array.isArray(data.findings)?data.findings:[]);setImproved(data.improved_code||null);setMobileOpen(true);}catch(e){setError(e instanceof TypeError?"Could not reach the review API. Start the backend and try again.":(e.message||"Could not reach the review service."));}finally{setLoading(false);fetch("/health").then(r=>setOnline(r.ok)).catch(()=>setOnline(false));}}
-  async function copy(value){try{await navigator.clipboard.writeText(value);setCopied(true);setTimeout(()=>setCopied(false),1500);}catch{setError("Clipboard access isn’t available in this browser.");}}
-  const levels=["critical","high","medium","low"], counts=Object.fromEntries(levels.map(x=>[x,findings?findings.filter(f=>String(f.severity).toLowerCase()===x).length:0]));
-  const shown=(findings||[]).filter(f=>filter==="all"||String(f.severity).toLowerCase()===filter);
-  return <div className="app-shell">
-    <header className="topbar"><a className="brand" href="/"><span className="brand-symbol"><Code2 size={17}/></span><span className="brand-word">codepilot<span className="brand-divider">/</span><span className="brand-product">review</span></span></a><div className="top-center"><GitBranch size={13}/> workspace <ChevronDown size={12}/></div><div className="top-right"><span className="service"><i className={online===true?"is-online":online===false?"is-offline":"is-checking"}/>{online===true?"All systems normal":online===false?"Service offline":"Connecting"}</span><span className="top-divider"/><a href="/docs" target="_blank" rel="noreferrer">API docs <ArrowUpRight size={12}/></a><button className="avatar" aria-label="Account">A</button></div></header>
-    <main className="main-content">
-      <section className="intro"><div><div className="eyebrow"><i/> A little more confidence, every commit</div><h1>Good code deserves<br/><span>a second set of eyes.</span></h1><p>Find the subtle things. Ship the thoughtful things.</p></div><div className="intro-aside"><div className="engine-card"><span className="engine-icon"><Sparkles size={15}/></span><span><small>REVIEW ENGINE</small><b>CodePilot AI <em>v1.0</em></b></span><i className="engine-pulse"/></div><span className="privacy"><ShieldCheck size={13}/> Private by design. Your code stays yours.</span></div></section>
-      <section className="workspace">
-        <div className={"editor panel "+(dragging?"dragging":"")} onDragOver={e=>{e.preventDefault();setDragging(true);}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDragging(false);}} onDrop={e=>{e.preventDefault();setDragging(false);openFile(e.dataTransfer.files[0]);}}>
-          <div className="toolbar"><div className="tabs"><div className="tab"><span className="py-badge">Py</span><span className="filename">{filename}</span><i/></div><button className="toolbar-icon" onClick={()=>upload.current?.click()} title="Open file"><Plus size={14}/></button></div><div className="toolbar-right"><label className="language"><span>{language.slice(0,2).toUpperCase()}</span><select value={language} aria-label="Programming language" onChange={e=>setLanguage(e.target.value)}>{Object.entries(langs).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select><ChevronDown size={12}/></label><i className="toolbar-sep"/><button className="toolbar-icon" onClick={()=>upload.current?.click()} title="Upload source file"><FileUp size={15}/></button><button className="toolbar-icon" onClick={()=>copy(code)} title="Copy source"><Copy size={14}/></button><input ref={upload} hidden type="file" accept=".py,.js,.mjs,.ts,.java,.c,.h,.cpp,.cc,.hpp,.cs,.go,.rs,.php,.rb,.kt,.txt" onChange={e=>openFile(e.target.files[0])}/></div></div>
-          <div className="code-surface"><div className="gutter" ref={gutter}>{lines.map((_,i)=><div className={i===5?"active-line":""} key={i}>{String(i+1).padStart(2,"0")}</div>)}</div><div className="code-wrap"><div className="highlight" ref={highlight} aria-hidden="true">{lines.map((line,i)=><div className={i===5?"current-line":""} key={i}>{colorLine(line)||" "}</div>)}</div><textarea ref={textarea} value={code} onChange={e=>setCode(e.target.value)} onScroll={syncScroll} onKeyDown={insertTab} spellCheck="false" autoCapitalize="off" autoComplete="off" aria-label="Source code editor"/></div>{dragging&&<div className="drop-cover"><FileUp size={23}/><b>Drop to open your file</b><span>We’ll detect the language for you</span></div>}</div>
-          <div className="statusbar"><div><span className="lang-status"><i/>{(langs[language]||"Python").toLowerCase()}</span><i className="status-sep"/>UTF-8<i className="status-sep"/>Spaces: 4</div><div>{lines.length} lines<i className="status-sep"/>{(new Blob([code]).size/1024).toFixed(1)} KB <span className="muted">/ 100 KB</span></div></div>
-          <div className="editor-footer"><span className="editor-note"><KeyRound size={13}/> Code goes only to your configured review model. <CircleHelp size={13}/></span><div className="run-group"><span className="shortcut"><kbd>⌘</kbd><kbd>↵</kbd></span><button className="run-button" onClick={review} disabled={loading||!code.trim()}>{loading?<LoaderCircle className="spin" size={14}/>:<Play size={13} fill="currentColor"/>}{loading?"Reviewing":"Run review"}<ArrowRight size={13}/></button></div></div>
-        </div>
-        <aside className={"results panel "+(mobileOpen?"mobile-open":"")}>
-          <div className="results-head"><div className="results-title"><span><ScanLine size={15}/></span><div><h2>Review insights</h2><small>{findings===null?"A clear view of what matters.":findings.length?"Here’s what we found in your code.":"Nothing to fix. Keep it up."}</small></div><button className="close-mobile" onClick={()=>setMobileOpen(false)} aria-label="Close"><X size={16}/></button></div><div className="severity">{levels.map(level=><button key={level} disabled={!findings} className={level+(filter===level?" selected":"")} onClick={()=>setFilter(filter===level?"all":level)}><span><i/>{level}</span><b>{findings===null?"—":String(counts[level]).padStart(2,"0")}</b></button>)}</div></div>
-          <div className="result-body">
-            {loading&&<div className="state loading-state"><span className="state-icon"><LoaderCircle className="spin" size={19}/></span><b>Reading between the lines</b><p>Checking for bugs, security risks, and rough edges.</p><div className="progress"><i/></div></div>}
-            {!loading&&error&&<div className="state"><span className="state-icon error-icon"><Zap size={18}/></span><b>Review didn’t complete</b><p>{error}</p><button className="text-link" onClick={review}>Try again <ArrowRight size={13}/></button></div>}
-            {!loading&&!error&&findings===null&&<div className="welcome"><div className="art"><i className="orbit orbit-a"/><i className="orbit orbit-b"/><span className="art-star star-a">✳</span><span className="art-star star-b">✦</span><span className="art-core"><Code2 size={26}/></span><span className="art-mini mini-a"><ShieldCheck size={13}/></span><span className="art-mini mini-b"><Zap size={13}/></span></div><div className="ready"><i/> READY WHEN YOU ARE</div><h3>Make the next change<br/>your best one.</h3><p>Run a review for clear, actionable feedback on the code you’re about to ship.</p><div className="proof"><span><Check size={12}/> Actionable findings</span><span><Check size={12}/> Line-by-line context</span></div><button className="load-sample" onClick={()=>{setCode(SAMPLE);setFilename("auth.py");setLanguage("python");}}><WandSparkles size={13}/> Load a sample file <ArrowRight size={13}/></button></div>}
-            {!loading&&!error&&findings!==null&&findings.length===0&&<div className="state clean"><span className="clean-icon"><CheckCheck size={23}/></span><small>ALL CLEAR</small><h3>Looking good.</h3><p>No actionable findings in <b>{filename}</b>. Keep shipping thoughtful code.</p><button className="text-link" onClick={()=>setFindings(null)}>Review another file <ArrowRight size={13}/></button></div>}
-            {!loading&&!error&&findings?.length>0&&<div className="finding-list"><div className="list-head"><span>{filter==="all"?"ALL FINDINGS":filter.toUpperCase()+" FINDINGS"}<b>{shown.length}</b></span><button onClick={()=>setFilter("all")}>Clear filter</button></div>{shown.map((item,i)=><Finding key={item.line+"-"+i} item={item} index={i}/>) }{shown.length===0&&<div className="no-results">No {filter} findings. <button onClick={()=>setFilter("all")}>Show all</button></div>}</div>}
-          </div>
-          {!loading&&improved&&<div className="improved"><div><span><WandSparkles size={13}/> Suggested improvement</span><button onClick={()=>copy(improved)}>{copied?<Check size={12}/>:<Copy size={12}/>} {copied?"Copied":"Copy"}</button></div><pre>{improved}</pre></div>}
-          {findings!==null&&!error&&<div className="results-footer"><Clock3 size={12}/> Just now <i>·</i> {language}<span/><button onClick={()=>{setFindings(null);setImproved(null);setError("");}}><Plus size={12}/> New review</button></div>}
-        </aside>
-      </section>
-      <footer className="page-footer"><span><i/> Thoughtful reviews. Better software.</span><span>Made for the details that matter.</span></footer>
-    </main>
-    <button className="mobile-review" onClick={()=>setMobileOpen(!mobileOpen)}><MessageSquareText size={15}/> Review insights {findings?.length>0&&<b>{findings.length}</b>}<Menu size={15}/></button>
-  </div>;
+function toNotes(findings) {
+  return findings
+    .map(f => ({ ...f, line: Math.max(1, parseInt(f.line) || 1), severity: LEVELS.includes(String(f.severity).toLowerCase()) ? String(f.severity).toLowerCase() : "low" }))
+    .sort((a, b) => a.line - b.line || LEVELS.indexOf(a.severity) - LEVELS.indexOf(b.severity))
+    .map((f, i) => ({ ...f, n: i + 1 }));
 }
 
-function Finding({item,index}){const severity=String(item.severity||"low").toLowerCase(), Icon=severity==="high"||severity==="critical"?ShieldCheck:severity==="medium"?Zap:CircleHelp;const [copied,setCopied]=useState(false);function copyFix(){navigator.clipboard?.writeText(item.suggested_fix).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1200);});}return <article className={"finding "+severity}><div className="finding-meta"><span><Icon size={12}/>{severity}</span><b>line {item.line}<i>:{item.column}</i></b></div><h3>{item.type||"Finding"}</h3><p>{item.explanation}</p>{item.suggested_fix&&<div className="fix"><div><span><WandSparkles size={11}/> SUGGESTED FIX</span><button onClick={copyFix}>{copied?"Copied":"Copy"}</button></div><p>{item.suggested_fix}</p></div>}<i className="finding-index">{String(index+1).padStart(2,"0")}</i></article>}
-function colorLine(line){const parts=line.split(/("[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'|\b(?:import|from|def|return|if|else|elif|for|while|class|try|except|raise|with|as|async|await|pass|in|is|not|and|or|True|False|None)\b|\b\d+\b|#[^\n]*)/g);return parts.map((part,i)=>{let c="plain";if(/^("|')/.test(part))c="string";else if(/^(import|from|def|return|if|else|elif|for|while|class|try|except|raise|with|as|async|await|pass|in|is|not|and|or|True|False|None)$/.test(part))c="keyword";else if(/^\d+$/.test(part))c="number";else if(/^#/.test(part))c="comment";return <span className={c} key={i}>{part}</span>;});}
+// Line diff for the Changes view: rows of [op, text, line number], op " " kept, "-" yours, "+" the reviewer's.
+// ponytail: O(n·m) LCS on the changed middle only; switch to Myers if huge rewrites get slow.
+function diffLines(before, after) {
+  const a = before.replace(/\r\n/g, "\n").trimEnd().split("\n"), b = after.replace(/\r\n/g, "\n").trimEnd().split("\n");
+  let s = 0, e = 0;
+  while (s < a.length && s < b.length && a[s] === b[s]) s++;
+  while (e < a.length - s && e < b.length - s && a[a.length - 1 - e] === b[b.length - 1 - e]) e++;
+  const A = a.slice(s, a.length - e), B = b.slice(s, b.length - e);
+  const L = Array.from({ length: A.length + 1 }, () => new Uint32Array(B.length + 1));
+  for (let i = A.length - 1; i >= 0; i--)
+    for (let j = B.length - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const rows = a.slice(0, s).map((t, k) => [" ", t, k + 1]);
+  let i = 0, j = 0;
+  while (i < A.length || j < B.length) {
+    if (i < A.length && j < B.length && A[i] === B[j]) { rows.push([" ", A[i], s + j + 1]); i++; j++; }
+    else if (i < A.length && (j === B.length || L[i + 1][j] >= L[i][j + 1])) { rows.push(["-", A[i], s + i + 1]); i++; }
+    else { rows.push(["+", B[j], s + j + 1]); j++; }
+  }
+  return rows.concat(b.slice(b.length - e).map((t, k) => [" ", t, b.length - e + k + 1]));
+}
+
+function Workspace() {
+  const [code, setCode] = useState(() => stored("codepilot.code") ?? "");
+  const [filename, setFilename] = useState(() => stored("codepilot.filename") || "untitled.py");
+  const [language, setLanguage] = useState(() => stored("codepilot.language") || "python");
+  const [langs, setLangs] = useState(FALLBACK_LANGUAGES);
+  const [online, setOnline] = useState(null);
+  const [review, setReview] = useState(null); // { notes, improved, code }
+  const [loading, setLoading] = useState(false), [error, setError] = useState(""), [guess, setGuess] = useState(null);
+  const [filter, setFilter] = useState(null), [active, setActive] = useState(null);
+  const [dragging, setDragging] = useState(false), [copied, setCopied] = useState(false), [view, setView] = useState("code");
+  const viewRef = useRef(null), margin = useRef(null), upload = useRef(null), picker = useRef(null);
+
+  const size = new Blob([code]).size, tooBig = size > LIMIT;
+  const notes = review ? review.notes.filter(n => !filter || n.severity === filter) : [];
+  const stale = review && code !== review.code;
+  // After a review the sheet can show the changes in place of the editor.
+  const drafted = review?.improved && !loading, shown = drafted ? view : "code";
+  const changes = useMemo(() => shown === "changes" ? diffLines(review.code, review.improved) : null, [shown, review]);
+
+  useEffect(() => { fetch("/languages").then(r => r.json()).then(setLangs).catch(() => {}); checkHealth(); }, []);
+  useEffect(() => { store("codepilot.code", code); store("codepilot.filename", filename); store("codepilot.language", language); }, [code, filename, language]);
+  useEffect(() => {
+    const key = e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); } };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  });
+
+  // Pin each margin note beside its line, pushing it down if the note above would overlap.
+  const [, relayout] = useState(0);
+  useEffect(() => { const r = () => relayout(x => x + 1); addEventListener("resize", r); return () => removeEventListener("resize", r); }, []);
+  useLayoutEffect(() => {
+    const view = viewRef.current, box = margin.current;
+    if (!view || !box || shown !== "code") return;
+    const base = view.documentTop - box.getBoundingClientRect().top;
+    let floor = box.querySelector(".margin-head")?.offsetHeight || 0;
+    for (const el of box.querySelectorAll(".note")) {
+      const line = view.state.doc.line(Math.min(+el.dataset.line, view.state.doc.lines));
+      const top = Math.max(base + view.lineBlockAt(line.from).top - 6, floor);
+      el.style.top = top + "px";
+      floor = top + el.offsetHeight + 12;
+    }
+    box.style.setProperty("--notes-height", floor + "px");
+  });
+
+  function placePicker(button) {
+    const r = button.getBoundingClientRect();
+    Object.assign(picker.current.style, { top: r.bottom + 10 + "px", left: Math.max(8, Math.min(r.left, innerWidth - 344)) + "px" });
+  }
+
+  function checkHealth() { fetch("/health").then(r => setOnline(r.ok)).catch(() => setOnline(false)); }
+
+  async function run(lang = language) {
+    if (!code.trim() || tooBig || loading) return;
+    setLoading(true); setError(""); setGuess(null); setFilter(null); setActive(null); setView("code");
+    try {
+      const r = await fetch("/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, language: lang, filename }) });
+      const data = await r.json().catch(() => ({}));
+      if (data.detail === "syntax_error") {
+        setGuess(r.headers.get("X-Detected-Language"));
+        throw Error(`This doesn’t parse as ${langs[lang]}. Check the Language setting, or fix the syntax error.`);
+      }
+      if (!r.ok) throw Error(ERRORS[data.detail] || (r.status >= 500 ? "The review API is unavailable. Start the backend and try again." : `Review failed (HTTP ${r.status}).`));
+      setReview({ notes: toNotes(Array.isArray(data.findings) ? data.findings : []), improved: data.improved_code || null, code });
+    } catch (e) {
+      setReview(null);
+      setError(e instanceof TypeError ? "Couldn’t reach the review API. Start the backend and try again." : e.message);
+    } finally {
+      setLoading(false); checkHealth();
+    }
+  }
+
+  async function openFile(file) {
+    if (!file) return;
+    setFilename(file.name);
+    if (languageFor(file.name)) setLanguage(languageFor(file.name));
+    setCode(await file.text()); setReview(null); setError("");
+  }
+
+  function load(text, name, lang) { setCode(text); setFilename(name); setLanguage(lang); setReview(null); setError(""); }
+
+  function goTo(note) {
+    const view = viewRef.current, line = view.state.doc.line(Math.min(note.line, view.state.doc.lines));
+    view.dispatch({ selection: { anchor: line.from }, scrollIntoView: true });
+    view.focus();
+  }
+
+  async function copy(text) {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch { setError("Clipboard access isn’t available in this browser."); }
+  }
+
+  const counts = Object.fromEntries(LEVELS.map(l => [l, review ? review.notes.filter(n => n.severity === l).length : 0]));
+
+  return <>
+    <Masthead>
+      <span className={"status " + (online === true ? "up" : online === false ? "down" : "")}><i />{online === true ? "API online" : online === false ? "API offline" : "Checking API"}</span>
+      <a className="navlink" href="#/">Sign out</a>
+    </Masthead>
+
+    <main>
+      <section className="lede">
+        <h1>Write it. <span>We’ll mark it.</span></h1>
+        <p>Write or paste code in any of {Object.keys(langs).length} languages. The reviewer reads it and leaves notes in the margin about bugs, security problems and anything worth tidying.</p>
+      </section>
+
+      <article className={"sheet" + (dragging ? " dragging" : "")}
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
+        onDrop={e => { e.preventDefault(); setDragging(false); openFile(e.dataTransfer.files[0]); }}>
+
+        <div className="file-tab">
+          <span className="ext">{ABBR[language] || "TXT"}</span>
+          <input className="filename" value={filename} size={Math.max(8, filename.length)} spellCheck="false" aria-label="File name"
+            onChange={e => setFilename(e.target.value)} onBlur={() => languageFor(filename) && setLanguage(languageFor(filename))} />
+          <PenLine size={13} aria-hidden="true" />
+        </div>
+
+        <div className="sheet-head">
+          <span className="written-in">written in</span>
+          <button key={language} className="stamp" popoverTarget="lang-picker" onClick={e => placePicker(e.currentTarget)} aria-label={`Language: ${langs[language]}. Change language`}>{langs[language]}</button>
+          <div id="lang-picker" popover="auto" className="lang-picker" ref={picker}>
+            <p>Which language is this?</p>
+            <div className="lang-grid">
+              {Object.entries(langs).map(([id, name]) => <button key={id} className={id === language ? "on" : ""} aria-pressed={id === language} onClick={() => { setLanguage(id); picker.current.hidePopover(); }}>{name}</button>)}
+            </div>
+          </div>
+          {drafted && <div className="view-toggle" role="group" aria-label="Show on the sheet">
+            {[["code", "Your code"], ["changes", "Changes"]].map(([v, label]) => <button key={v} className={shown === v ? "on" : ""} aria-pressed={shown === v} onClick={() => setView(v)}>{label}</button>)}
+          </div>}
+          <div className="tools">
+            <button className="tool" onClick={() => upload.current.click()}><Paperclip size={15} />Attach file</button>
+            <button className="tool" onClick={() => load(SAMPLES[language][1], SAMPLES[language][0], language)}><BookOpen size={15} />Example</button>
+            {code && <button className="tool" onClick={() => load("", filename, language)}><Eraser size={15} />Fresh sheet</button>}
+            <input ref={upload} hidden type="file" accept={Object.keys(EXT).map(e => "." + e).join(",") + ",.txt"} onChange={e => { openFile(e.target.files[0]); e.target.value = ""; }} />
+          </div>
+        </div>
+
+        <div className={"page" + (shown !== "code" ? " alt" : "")}>
+          <Editor value={code} onChange={setCode} languageName={langs[language] || FALLBACK_LANGUAGES[language]} notes={stale ? [] : notes} active={active} onRun={run} viewRef={viewRef} />
+          {changes && <div className="draft-view">
+            <div className="draft-bar">
+              <p><span className="del-key">struck</span> lines are yours, <span className="add-key">green</span> lines are the reviewer’s fix.</p>
+              <button className="link" onClick={() => copy(review.improved)}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}</button>
+              <button className="link" onClick={() => load(review.improved, filename, language)}>Use this version</button>
+            </div>
+            <pre className="diff">{changes.map(([op, text, n], i) =>
+              <div key={i} className={op === "+" ? "add" : op === "-" ? "del" : ""}><span className="dn">{n}</span><span className="op">{op}</span><span className="t">{text}</span></div>)}</pre>
+          </div>}
+          <aside className="margin" ref={margin} aria-live="polite">
+            <div className="margin-head">
+              <h2>Margin notes</h2>
+              {loading && <p className="reading">Reading your code<span className="pen" /></p>}
+              {!loading && error && <div className="slip error"><b>The review didn’t finish.</b><p>{error}</p>{guess ? <button className="link" onClick={() => { setLanguage(guess); run(guess); }}>It looks like {langs[guess]}. Switch and review</button> : <button className="link" onClick={() => run()}>Try again</button>}</div>}
+              {!loading && !error && !review && <p className="hint">Notes appear here, next to the lines they refer to. Press <kbd>{MOD}</kbd> <kbd>↵</kbd> or <b>Mark it up</b> when you’re ready.</p>}
+              {!loading && !error && review && review.notes.length === 0 && <div className="slip clean"><span className="big-tick">✓</span><b>No marks.</b><p>The reviewer found nothing to fix in {filename}.</p></div>}
+              {!loading && stale && review.notes.length > 0 && <div className="slip stale">You’ve edited the code since this review, so notes may point at the wrong lines. <button className="link" onClick={() => run()}>Review again</button></div>}
+              {!loading && review && filter && notes.length === 0 && <p className="hint">No {filter} notes. <button className="link" onClick={() => setFilter(null)}>Show all</button></p>}
+            </div>
+            {!loading && !stale && notes.map((note, i) =>
+              <button key={note.n} data-line={note.line} style={{ "--d": i }} className={`note sev-${note.severity}` + (active === note.n ? " is-active" : "")}
+                onMouseEnter={() => setActive(note.n)} onMouseLeave={() => setActive(null)} onFocus={() => setActive(note.n)} onBlur={() => setActive(null)} onClick={() => { setView("code"); requestAnimationFrame(() => goTo(note)); }}>
+                <span className="note-meta"><span className="num">{note.n}</span>{note.severity}<span className="where">line {note.line}</span></span>
+                <b>{humanize(note.type)}</b>
+                <span className="explain">{note.explanation}</span>
+                {note.suggested_fix && <span className="fix">→ {note.suggested_fix}</span>}
+              </button>)}
+          </aside>
+          {dragging && <div className="drop">Drop the file to open it</div>}
+        </div>
+
+        <footer className="sheet-foot">
+          {review && !stale
+            ? <div className="marks" role="group" aria-label="Filter notes by severity">
+                {LEVELS.map(l => <button key={l} className={`mark sev-${l}` + (filter === l ? " on" : "")} disabled={!counts[l]} onClick={() => setFilter(filter === l ? null : l)} aria-pressed={filter === l}>
+                  <b>{counts[l]}</b>{l}</button>)}
+              </div>
+            : <p className="unmarked">{loading ? "Marking…" : "Not marked yet."}</p>}
+          <div className={"gauge" + (tooBig ? " over" : "")}>
+            <span>{code ? code.split("\n").length : 0} lines</span>
+            <i style={{ "--fill": Math.min(1, size / LIMIT) }} aria-hidden="true" />
+            <span>{(size / 1000).toFixed(1)} / 100 KB</span>
+          </div>
+          <button className="primary" onClick={() => run()} disabled={loading || !code.trim() || tooBig}>{loading ? "Reading…" : review && !stale ? "Mark it up again" : "Mark it up"}<span className="keys">{MOD} ↵</span></button>
+        </footer>
+      </article>
+
+    </main>
+
+  </>;
+}
+
+// Hash routes, so FastAPI only ever has to serve "/".
+function Root() {
+  const [route, setRoute] = useState(location.hash);
+  useEffect(() => {
+    const change = () => { setRoute(location.hash); scrollTo(0, 0); };
+    addEventListener("hashchange", change);
+    return () => removeEventListener("hashchange", change);
+  }, []);
+  if (route === "#/review") return <Workspace />;
+  if (route === "#/signin" || route === "#/signup") return <Auth key={route} mode={route.slice(2)} />;
+  return <Landing />;
+}
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("root"));
 if (import.meta.hot) import.meta.hot.data.root = root;
-root.render(<React.StrictMode><App/></React.StrictMode>);
+root.render(<React.StrictMode><Root /></React.StrictMode>);
