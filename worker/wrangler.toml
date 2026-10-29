@@ -1,0 +1,25 @@
+name = "codepilot"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# The built React app (`npm.cmd run build` at the repo root) is served as static files.
+[assets]
+directory = "../frontend/dist"
+
+[vars]
+# Your Qwen endpoint. When the tunnel URL changes: edit this line, then run `bun run deploy`.
+MODEL_URL = "https://alphabetical-river-only-assessments.trycloudflare.com/v1/chat/completions"
+MODEL_NAME = "qwen3.8-27b-uncensored-mtp:latest"
+MODEL_TIMEOUT_MS = "120000"
+# Backup model, tried when the one above fails: the Docker model's tunnel URL (see RUN.md) + /v1/chat/completions.
+# Leave empty for no backup. It changes each time the tunnel restarts: edit, then `bun run deploy`.
+FALLBACK_MODEL_URL = "https://afford-hardcover-harper-thou.trycloudflare.com/v1/chat/completions"
+FALLBACK_MODEL_NAME = "qwen3.5-9b"
+# Your Supabase project URL (Project Settings -> API), e.g. https://abcdefgh.supabase.co
+SUPABASE_URL = "https://kznbombadogwizvsruep.supabase.co"
+DAILY_REVIEW_LIMIT = "50"
+
+# Secrets: never in this file. Set once with `bunx wrangler secret put <NAME>` (locally: worker/.dev.vars):
+#   CLERK_SECRET_KEY     Clerk dashboard -> API keys -> Secret key (sk_...)
+#   SUPABASE_SECRET_KEY  Supabase -> Project Settings -> API keys -> Secret key (sb_secret_...)
+#   FALLBACK_MODEL_KEY   the MODEL_API_KEY from the repo's .env (Docker backup model)
