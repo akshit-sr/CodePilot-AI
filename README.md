@@ -1,22 +1,28 @@
 # CodePilot AI Review Service
 
-A FastAPI service that reviews source code with a Qwen model and returns
-structured findings (type, severity, line, column, explanation, suggested fix)
-plus optional improved code. It ships with a single-page frontend and can be
-published from your own computer through a Cloudflare Tunnel.
+A code-review web app. You sign in, paste or attach a source file, and a Qwen
+model returns structured findings (type, severity, line, column, explanation,
+suggested fix) plus optional improved code, shown as notes in the margin.
+
+It runs as one Cloudflare Worker that serves the React site and the API, with
+Clerk for accounts and Supabase (PostgreSQL) for review history and daily limits.
 
 ## How it works
 
-1. `POST /review` validates the request: supported language, size limit, and
-   a tree-sitter syntax check for that language, so broken code is rejected
-   before reaching a model.
-2. The code is sent to the **primary** model (`qwen3.8-27b-uncensored-mtp`, a
-   remote OpenAI-compatible endpoint).
-3. If the primary fails for any reason (unreachable, timeout, malformed
-   output), the service logs a warning and **falls back** to the **local**
-   model (`qwen3.5-9b` on llama-server at `127.0.0.1:8080`).
-4. The model's JSON reply is validated against a strict schema before it is
-   returned.
+1. **Browser:** the code is syntax-checked with tree-sitter (WebAssembly grammars
+   in `frontend/public/grammars/`). Broken code is stopped here, with a guess at
+   the language it does parse as.
+2. **Worker** (`worker/src/index.ts`), `POST /review`:
+   - checks the Clerk session token (`401 sign_in_required` without one);
+   - checks language and size;
+   - counts the review against the user's daily limit in one atomic database
+     call (`429 daily_limit_reached` once it is used up);
+   - sends the code to the Qwen endpoint, or to the Docker backup model if that
+     fails, and validates the JSON reply against a strict schema;
+   - saves the review to the user's history and returns it with `reviews_left`.
+   A failed model call gives the review back, so errors don't use up the limit.
+3. **Supabase** holds `profiles`, `reviews` and `daily_usage`. Row-level security
+   is on with no public policies, so only the Worker's secret key can read them.
 
 ## Supported languages
 
@@ -29,38 +35,32 @@ published from your own computer through a Cloudflare Tunnel.
 | `c`              | C          | `ruby`           | Ruby     |
 | `cpp`            | C++        | `kotlin`         | Kotlin   |
 
-Values are case-insensitive. Grammars come from `tree-sitter-language-pack`,
-which downloads each one the first time it is used and caches it, so the first
-review in a language needs internet access. To add a language, add its pack
-name and display name to `LANGUAGES` in `app.py`.
+Values are case-insensitive. To add a language, add it to `LANGUAGES` in
+`worker/src/index.ts`, its grammar to `frontend/public/grammars/`, and an
+example to `frontend/src/samples.js`.
 
 ## Quick start
 
+See [RUN.md](RUN.md) for keys, local runs and deploying.
+
 ```powershell
-npm install
-npm run build
-uv sync
-uv run uvicorn app:app --reload
+npm.cmd install; npm.cmd run build
+cd worker; bun install; bun run dev    # http://127.0.0.1:8787
 ```
-
-This starts only the API on `http://127.0.0.1:8000`; a model endpoint must
-already be reachable. To start the local model, the API, and a public tunnel
-together, use `.\start.ps1` — see [RUN.md](RUN.md).
-
-`frontend/dist/` is committed, so `npm run build` is only needed after editing
-the frontend; the API won't start without `frontend/dist/assets`. For frontend
-work, run `npm run dev` (Vite on `127.0.0.1:5173`, forwarding API calls to `:8000`).
 
 ## Endpoints
 
-| Method | Path      | Purpose                         |
-| ------ | --------- | ------------------------------- |
-| GET    | `/`       | Review page (`frontend/dist/index.html`) |
-| GET    | `/assets/*` | Built frontend JS/CSS         |
-| GET    | `/health` | Liveness check                  |
-| GET    | `/languages` | Supported languages (id → name) |
-| POST   | `/review` | Review a source file            |
-| GET    | `/docs`   | OpenAPI docs                    |
+| Method | Path           | Sign-in | Purpose                                   |
+| ------ | -------------- | ------- | ----------------------------------------- |
+| GET    | `/health`      | no      | Liveness check                            |
+| GET    | `/languages`   | no      | Supported languages (id → name)           |
+| POST   | `/review`      | yes     | Review a source file                      |
+| GET    | `/usage`       | yes     | `{ limit, used, left }` for today (UTC)   |
+| GET    | `/history`     | yes     | Your last 50 reviews (id, file, language, date) |
+| GET    | `/history/:id` | yes     | One of your reviews in full               |
+
+Signed-in requests send `Authorization: Bearer <Clerk session token>`. The
+site itself is served as static files from `frontend/dist/`.
 
 Request:
 
@@ -75,80 +75,73 @@ Response:
 ```json
 {
   "findings": [
-    {
-      "type": "bug",
-      "severity": "high",
-      "line": 1,
-      "column": 1,
-      "explanation": "...",
-      "suggested_fix": "..."
-    }
+    { "type": "bug", "severity": "high", "line": 1, "column": 1, "explanation": "...", "suggested_fix": "..." }
   ],
-  "improved_code": null
+  "improved_code": null,
+  "id": "5f0c…",
+  "reviews_left": 49
 }
 ```
 
 Errors are returned as `{"detail": "<code>"}`:
 
-| Status | Detail                   | Cause                                  |
-| ------ | ------------------------ | -------------------------------------- |
-| 400    | `syntax_error`           | Code does not parse in that language   |
-| 413    | `code_too_large`         | Code exceeds `CODEPILOT_MAX_CODE_SIZE` |
-| 422    | `unsupported_language`   | `language` is not in the list above    |
-| 502    | `malformed_model_output` | Model reply did not match the schema   |
-| 503    | `model_unavailable`      | Model endpoint unreachable or errored  |
-| 504    | `model_timeout`          | Model did not answer in time           |
-
-The 5xx codes describe the local fallback model, since it is tried last.
+| Status | Detail                   | Cause                                    |
+| ------ | ------------------------ | ---------------------------------------- |
+| 401    | `sign_in_required`       | Missing or invalid Clerk session token   |
+| 404    | `not_found`              | No such review in your history           |
+| 413    | `code_too_large`         | Code is over 100 KB                      |
+| 422    | `invalid_request`        | Missing or empty `code`, or bad types    |
+| 422    | `unsupported_language`   | `language` is not in the list above      |
+| 429    | `daily_limit_reached`    | Today's reviews are used up              |
+| 502    | `malformed_model_output` | Model reply did not match the schema     |
+| 503    | `model_unavailable`      | Model endpoint unreachable or errored    |
+| 503    | `database_unavailable`   | Supabase unreachable or errored          |
+| 504    | `model_timeout`          | Model did not answer in time             |
 
 ## Configuration
 
-Settings use the `CODEPILOT_` prefix and can be set in the environment or in
-`.env` (see `.env.example`).
+Plain settings live in `worker/wrangler.toml` under `[vars]`:
 
-| Variable                          | Default                                      |
-| --------------------------------- | -------------------------------------------- |
-| `CODEPILOT_PRIMARY_MODEL_URL`     | a `trycloudflare.com` quick-tunnel URL       |
-| `CODEPILOT_PRIMARY_MODEL_NAME`    | `qwen3.8-27b-uncensored-mtp:latest`          |
-| `CODEPILOT_MODEL_URL`             | `http://127.0.0.1:8080/v1/chat/completions`  |
-| `CODEPILOT_MODEL_NAME`            | `qwen3.5-9b`                                 |
-| `CODEPILOT_MODEL_TIMEOUT_SECONDS` | `120` (`start.ps1` sets `900`)               |
-| `CODEPILOT_MAX_CODE_SIZE`         | `100000` bytes                               |
-| `CODEPILOT_HOST` / `CODEPILOT_PORT` | `127.0.0.1` / `8000`                       |
+| Variable             | Purpose                                              |
+| -------------------- | ---------------------------------------------------- |
+| `MODEL_URL`          | Qwen endpoint (OpenAI-compatible chat completions)   |
+| `MODEL_NAME`         | Model name sent to it                                |
+| `MODEL_TIMEOUT_MS`   | Per-call timeout, default `120000`                   |
+| `SUPABASE_URL`       | Supabase project URL                                 |
+| `DAILY_REVIEW_LIMIT` | Reviews per user per UTC day, default `50`           |
+| `FALLBACK_MODEL_URL` | Backup model URL (Docker + tunnel); empty = no backup |
+| `FALLBACK_MODEL_NAME`| Backup model name, `qwen3.5-9b`                      |
 
-The default primary URL is a quick tunnel, which changes every time that tunnel
-restarts. Set `CODEPILOT_PRIMARY_MODEL_URL` to the current one, otherwise every
-review falls back to the local model. The timeout applies per model, so a
-hanging primary delays the fallback by that long.
-
-`run_service.py` and `start.ps1` also read `CODEPILOT_LLAMA_SERVER_EXE`,
-`CODEPILOT_MODEL_PATH`, `CODEPILOT_MODEL_HOST`, and `CODEPILOT_MODEL_PORT` for
-the local llama-server.
+Secrets, never in Git: `CLERK_SECRET_KEY`, `SUPABASE_SECRET_KEY` and
+`FALLBACK_MODEL_KEY` (`bunx wrangler secret put`, or `worker/.dev.vars`
+locally). The frontend reads `VITE_CLERK_PUBLISHABLE_KEY` from `frontend/.env`.
+The Docker backup model reads `MODEL_FILE` and `MODEL_API_KEY` from `.env`
+(see `.env.example` and [RUN.md](RUN.md#backup-model-docker)).
 
 ## Tests
 
 ```powershell
-uv run pytest
+bun test frontend           # browser syntax check, all 12 grammars
+cd worker; bun test         # Worker API; Clerk, Supabase and the model are mocked
 ```
 
-The tests mock the model endpoints, so no model needs to be running.
-
-CI (`.github/workflows/ci.yml`) runs `uv run pytest` and `npm ci && npm run build`
-on pull requests to `main` and on pushes to `main` and `feat/**`.
+CI (`.github/workflows/ci.yml`) runs both plus `npm run build` on pull
+requests to `main` and on pushes to `main` and `feat/**`.
 
 ## Project layout
 
-| File             | Purpose                                                     |
-| ---------------- | ----------------------------------------------------------- |
-| `app.py`         | FastAPI app, validation, model calls and fallback           |
-| `frontend/index.html` | Vite entry page                                     |
-| `frontend/src/main.jsx` | React review interface                         |
-| `frontend/src/styles.css` | Frontend styles                              |
-| `frontend/dist/` | Built frontend served by FastAPI                       |
-| `vite.config.mjs` | Vite config (root, dev forwarding, build output)       |
-| `package.json`   | Frontend and `cloudflared` npm scripts and packages     |
-| `.github/workflows/ci.yml` | CI: Python tests and frontend build          |
-| `run_service.py` | Starts llama-server and the API together                    |
-| `start.ps1`      | Starts everything and opens a Cloudflare tunnel             |
-| `test_app.py`    | API tests                                                   |
-| `RUN.md`         | Local model and Cloudflare Tunnel setup                     |
+| Path                         | Purpose                                         |
+| ---------------------------- | ----------------------------------------------- |
+| `worker/src/index.ts`        | Worker API: auth, limits, model call, history   |
+| `worker/wrangler.toml`       | Worker settings, including `MODEL_URL`          |
+| `supabase/migrations/`       | Database schema                                 |
+| `frontend/src/main.jsx`      | Review workspace and hash routes                |
+| `frontend/src/Auth.jsx`      | Clerk sign-in / sign-up pages                   |
+| `frontend/src/Landing.jsx`   | Home page                                       |
+| `frontend/src/syntax.js`     | Browser syntax check and language guess         |
+| `frontend/public/grammars/`  | tree-sitter grammars (WebAssembly)              |
+| `frontend/dist/`             | Built site, served by the Worker (committed)    |
+| `vite.config.mjs`            | Vite config (root, dev forwarding, build output)|
+| `.github/workflows/ci.yml`   | CI                                              |
+| `compose.yaml`, `.env.example` | Docker backup model and its tunnel            |
+| `RUN.md`                     | Keys, local runs, deploying, backup model       |

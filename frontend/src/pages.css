@@ -6,7 +6,6 @@
 .btn-ink:hover svg, .btn-paper:hover svg { transform: translateX(3px); }
 .btn-ink svg, .btn-paper svg { transition: transform .15s; }
 .btn-ink.small { padding: 8px 14px; font-size: 14px; }
-.btn-ink.wide { width: 100%; justify-content: center; margin-top: 8px; }
 .btn-paper { background: var(--paper); color: var(--ink); }
 .textlink { font: italic 16px var(--serif); color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 5px; }
 .textlink:hover { color: var(--pen); text-decoration-color: currentColor; }
@@ -160,12 +159,6 @@
 .auth-sheet h1 { margin: 0 0 8px; font: 400 38px/1.05 var(--serif); letter-spacing: -.02em; }
 .auth-sheet h1 em { color: var(--pen); }
 .auth-sheet > p { margin: 0 0 28px; color: var(--ink-2); }
-.input { display: block; margin-bottom: 16px; }
-.input span { display: block; margin-bottom: 7px; font: 600 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
-.input input { width: 100%; padding: 12px 13px; border: 1.5px solid var(--rule); border-radius: 3px; background: var(--paper-2); font: 15px var(--sans); color: var(--ink); transition: border-color .15s, background .15s; }
-.input input:focus { outline: none; border-color: var(--pen); background: var(--paper); }
-.auth-sheet .switch { margin: 22px 0 0; text-align: center; font: italic 15px var(--serif); color: var(--ink-3); }
-.switch a { color: var(--pen); }
 
 .auth-art { position: relative; width: 100%; max-width: 520px; aspect-ratio: 1; justify-self: center; }
 .art-sheet { position: absolute; inset: 6% 5% 1% 7%; display: flex; flex-direction: column; gap: 22px; padding: 56px 48px; background: var(--paper); border-radius: 3px; box-shadow: var(--shadow); transform: rotate(-1.5deg); }

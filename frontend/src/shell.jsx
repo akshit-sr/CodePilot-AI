@@ -8,7 +8,7 @@ export function Masthead({ children }) {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || "light");
   useEffect(() => { document.documentElement.dataset.theme = theme; store("codepilot.theme", theme); }, [theme]);
   return <header className="masthead">
-    <a className="wordmark" href="#/">Code<em>Pilot</em><span className="tick" aria-hidden="true">✓</span></a>
+    <a className="wordmark" href="#">Code<em>Pilot</em><span className="tick" aria-hidden="true">✓</span></a>
     <span className="tagline">code review, marked up</span>
     <nav>
       {children}

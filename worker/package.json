@@ -1,0 +1,16 @@
+{
+  "name": "codepilot-worker",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "npm --prefix .. run build && wrangler deploy",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@clerk/backend": "^3.26.4",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "wrangler": "^4.155.0"
+  }
+}

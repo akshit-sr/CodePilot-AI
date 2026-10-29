@@ -15,17 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python:
-    name: Python API
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
-      - run: uv sync --locked
-      - run: uv run pytest
-
   frontend:
-    name: React frontend
+    name: React frontend and Worker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -33,5 +24,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: oven-sh/setup-bun@v2
       - run: npm ci
       - run: npm run build
+      - run: bun test frontend
+      - run: bun install --frozen-lockfile && bun test
+        working-directory: worker

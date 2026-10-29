@@ -1,12 +1,17 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { ClerkProvider, useAuth } from "@clerk/react";
 import { BookOpen, Check, Copy, Eraser, Paperclip, PenLine } from "lucide-react";
-import Editor from "./Editor.jsx";
 import Landing from "./Landing.jsx";
 import Auth from "./Auth.jsx";
 import { Masthead, stored, store } from "./shell.jsx";
 import { SAMPLES } from "./samples.js";
+import { syntaxChecker } from "./syntax.js";
+import parserRuntime from "web-tree-sitter/web-tree-sitter.wasm?url";
 import "./styles.css";
+
+// CodeMirror is most of the bundle and only the workspace needs it.
+const Editor = lazy(() => import("./Editor.jsx"));
 
 const FALLBACK_LANGUAGES = { python: "Python", javascript: "JavaScript", typescript: "TypeScript", java: "Java", c: "C", cpp: "C++", csharp: "C#", go: "Go", rust: "Rust", php: "PHP", ruby: "Ruby", kotlin: "Kotlin" };
 const EXT = { py: "python", js: "javascript", mjs: "javascript", ts: "typescript", java: "java", c: "c", h: "c", cpp: "cpp", cc: "cpp", hpp: "cpp", cs: "csharp", go: "go", rs: "rust", php: "php", rb: "ruby", kt: "kotlin" };
@@ -16,10 +21,14 @@ const ERRORS = {
   model_unavailable: "The review model is unavailable. Check that the model service is running.",
   model_timeout: "The model took too long to answer. Try again in a moment.",
   malformed_model_output: "The model returned an unreadable review. Try again.",
+  sign_in_required: "Your session has expired. Sign out and sign in again.",
+  daily_limit_reached: "You’ve used all of today’s reviews. The count resets at midnight UTC.",
+  database_unavailable: "The review service can’t reach its database. Try again in a moment.",
 };
 const ABBR = { python: "PY", javascript: "JS", typescript: "TS", java: "JAVA", c: "C", cpp: "C++", csharp: "C#", go: "GO", rust: "RS", php: "PHP", ruby: "RB", kotlin: "KT" };
 const LEVELS = ["critical", "high", "medium", "low"];
 const LIMIT = 100_000;
+const syntax = syntaxChecker(lang => `/grammars/${lang}.wasm`, parserRuntime);
 const MOD = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl";
 
 const humanize = type => (type || "finding").replace(/[_-]+/g, " ").replace(/^./, c => c.toUpperCase());
@@ -54,6 +63,9 @@ function diffLines(before, after) {
 }
 
 function Workspace() {
+  const { getToken, signOut } = useAuth();
+  const api = async (path, init = {}) => fetch(path, { ...init, headers: { ...init.headers, Authorization: `Bearer ${await getToken()}` } });
+  const [usage, setUsage] = useState(null), [history, setHistory] = useState([]); // { limit, left }, [{ id, filename, language, created_at }]
   const [code, setCode] = useState(() => stored("codepilot.code") ?? "");
   const [filename, setFilename] = useState(() => stored("codepilot.filename") || "untitled.py");
   const [language, setLanguage] = useState(() => stored("codepilot.language") || "python");
@@ -72,7 +84,11 @@ function Workspace() {
   const drafted = review?.improved && !loading, shown = drafted ? view : "code";
   const changes = useMemo(() => shown === "changes" ? diffLines(review.code, review.improved) : null, [shown, review]);
 
-  useEffect(() => { fetch("/languages").then(r => r.json()).then(setLangs).catch(() => {}); checkHealth(); }, []);
+  useEffect(() => {
+    fetch("/languages").then(r => r.json()).then(setLangs).catch(() => {}); checkHealth();
+    api("/usage").then(r => r.ok && r.json()).then(u => u && setUsage(u)).catch(() => {});
+    loadHistory();
+  }, []);
   useEffect(() => { store("codepilot.code", code); store("codepilot.filename", filename); store("codepilot.language", language); }, [code, filename, language]);
   useEffect(() => {
     const key = e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); } };
@@ -103,19 +119,35 @@ function Workspace() {
   }
 
   function checkHealth() { fetch("/health").then(r => setOnline(r.ok)).catch(() => setOnline(false)); }
+  function loadHistory() { api("/history").then(r => r.ok && r.json()).then(h => Array.isArray(h) && setHistory(h)).catch(() => {}); }
+
+  async function openPast(id) {
+    try {
+      const r = await api(`/history/${id}`);
+      if (!r.ok) throw Error();
+      const past = await r.json();
+      load(past.code, past.filename, past.language);
+      setReview({ notes: toNotes(past.findings), improved: past.improved_code, code: past.code });
+      scrollTo({ top: 0, behavior: "smooth" });
+    } catch { setError("Couldn’t open that review. Try again."); }
+  }
 
   async function run(lang = language) {
     if (!code.trim() || tooBig || loading) return;
     setLoading(true); setError(""); setGuess(null); setFilter(null); setActive(null); setView("code");
     try {
-      const r = await fetch("/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, language: lang, filename }) });
-      const data = await r.json().catch(() => ({}));
-      if (data.detail === "syntax_error") {
-        setGuess(r.headers.get("X-Detected-Language"));
+      // A grammar that fails to load just skips the check; the reviewer still runs.
+      if (await syntax.hasError(code, lang).catch(() => false)) {
+        setGuess(await syntax.detect(code, lang).catch(() => null));
         throw Error(`This doesn’t parse as ${langs[lang]}. Check the Language setting, or fix the syntax error.`);
       }
+      const r = await api("/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, language: lang, filename }) });
+      const data = await r.json().catch(() => ({}));
+      if (data.detail === "daily_limit_reached") setUsage(u => u && { ...u, left: 0 });
       if (!r.ok) throw Error(ERRORS[data.detail] || (r.status >= 500 ? "The review API is unavailable. Start the backend and try again." : `Review failed (HTTP ${r.status}).`));
       setReview({ notes: toNotes(Array.isArray(data.findings) ? data.findings : []), improved: data.improved_code || null, code });
+      if (typeof data.reviews_left === "number") setUsage(u => u && { ...u, left: data.reviews_left });
+      loadHistory();
     } catch (e) {
       setReview(null);
       setError(e instanceof TypeError ? "Couldn’t reach the review API. Start the backend and try again." : e.message);
@@ -149,7 +181,8 @@ function Workspace() {
   return <>
     <Masthead>
       <span className={"status " + (online === true ? "up" : online === false ? "down" : "")}><i />{online === true ? "API online" : online === false ? "API offline" : "Checking API"}</span>
-      <a className="navlink" href="#/">Sign out</a>
+      {usage && <span className="quota">{usage.left} of {usage.limit} reviews left today</span>}
+      <a className="navlink" href="#" onClick={e => { e.preventDefault(); signOut({ redirectUrl: "/#" }); }}>Sign out</a>
     </Masthead>
 
     <main>
@@ -191,7 +224,7 @@ function Workspace() {
         </div>
 
         <div className={"page" + (shown !== "code" ? " alt" : "")}>
-          <Editor value={code} onChange={setCode} languageName={langs[language] || FALLBACK_LANGUAGES[language]} notes={stale ? [] : notes} active={active} onRun={run} viewRef={viewRef} />
+          <Suspense><Editor value={code} onChange={setCode} languageName={langs[language] || FALLBACK_LANGUAGES[language]} notes={stale ? [] : notes} active={active} onRun={run} viewRef={viewRef} /></Suspense>
           {changes && <div className="draft-view">
             <div className="draft-bar">
               <p><span className="del-key">struck</span> lines are yours, <span className="add-key">green</span> lines are the reviewer’s fix.</p>
@@ -205,7 +238,7 @@ function Workspace() {
             <div className="margin-head">
               <h2>Margin notes</h2>
               {loading && <p className="reading">Reading your code<span className="pen" /></p>}
-              {!loading && error && <div className="slip error"><b>The review didn’t finish.</b><p>{error}</p>{guess ? <button className="link" onClick={() => { setLanguage(guess); run(guess); }}>It looks like {langs[guess]}. Switch and review</button> : <button className="link" onClick={() => run()}>Try again</button>}</div>}
+              {!loading && error && <div className="slip error"><b>The review didn’t finish.</b><p>{error}</p>{guess ? <button className="link" onClick={() => { setLanguage(guess); run(guess); }}>It looks like {langs[guess]}. Switch and review</button> : usage?.left !== 0 && <button className="link" onClick={() => run()}>Try again</button>}</div>}
               {!loading && !error && !review && <p className="hint">Notes appear here, next to the lines they refer to. Press <kbd>{MOD}</kbd> <kbd>↵</kbd> or <b>Mark it up</b> when you’re ready.</p>}
               {!loading && !error && review && review.notes.length === 0 && <div className="slip clean"><span className="big-tick">✓</span><b>No marks.</b><p>The reviewer found nothing to fix in {filename}.</p></div>}
               {!loading && stale && review.notes.length > 0 && <div className="slip stale">You’ve edited the code since this review, so notes may point at the wrong lines. <button className="link" onClick={() => run()}>Review again</button></div>}
@@ -239,24 +272,39 @@ function Workspace() {
         </footer>
       </article>
 
+      {history.length > 0 && <section className="past">
+        <h2>Earlier sheets</h2>
+        <ul>{history.map(h => <li key={h.id}><button onClick={() => openPast(h.id)}>
+          <span className="ext">{ABBR[h.language] || "TXT"}</span><b>{h.filename}</b>
+          <time dateTime={h.created_at}>{new Date(h.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time>
+        </button></li>)}</ul>
+      </section>}
     </main>
 
   </>;
 }
 
-// Hash routes, so FastAPI only ever has to serve "/".
+// Hash routes (#review, #signin, #signup), so the server only ever has to serve "/". No slash after "#":
+// "#/…" belongs to Clerk's form steps (#/factor-one, #/verify…), which keep the open form on screen.
 function Root() {
   const [route, setRoute] = useState(location.hash);
+  const { isLoaded, isSignedIn } = useAuth();
+  const form = useRef(null);
   useEffect(() => {
     const change = () => { setRoute(location.hash); scrollTo(0, 0); };
     addEventListener("hashchange", change);
     return () => removeEventListener("hashchange", change);
   }, []);
-  if (route === "#/review") return <Workspace />;
-  if (route === "#/signin" || route === "#/signup") return <Auth key={route} mode={route.slice(2)} />;
-  return <Landing />;
+  if (route === "#review" && (isSignedIn || !isLoaded)) return isSignedIn ? <Workspace /> : null;
+  form.current = route === "#signin" || route === "#signup" ? route.slice(1) : route === "#review" ? "signin" : route.startsWith("#/") ? form.current : null;
+  return form.current ? <Auth key={form.current} mode={form.current} /> : <Landing />;
 }
+
+// Clerk's redirects only ever change the hash here; without a router it waits for a page load that never comes.
+const goTo = replace => to => { const { hash } = new URL(to, location.href); replace ? location.replace(hash || "#") : location.hash = hash; };
 
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("root"));
 if (import.meta.hot) import.meta.hot.data.root = root;
-root.render(<React.StrictMode><Root /></React.StrictMode>);
+root.render(<React.StrictMode>
+  <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/#" routerPush={goTo(false)} routerReplace={goTo(true)}><Root /></ClerkProvider>
+</React.StrictMode>);

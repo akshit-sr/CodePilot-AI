@@ -4,10 +4,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
-    "tunnel": "cloudflared tunnel --url http://127.0.0.1:8000"
+    "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@clerk/react": "^6.18.3",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/language": "^6.13.1",
     "@codemirror/language-data": "^6.5.2",
@@ -17,11 +17,11 @@
     "codemirror": "^6.0.2",
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "web-tree-sitter": "^0.27.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
-    "cloudflared": "^0.7.3",
     "vite": "^8.3.5"
   }
 }

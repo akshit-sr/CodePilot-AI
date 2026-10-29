@@ -1,0 +1,27 @@
+# Backup model for the Worker: Qwen 3.5 9B on llama-server, published through a Cloudflare quick tunnel.
+# Settings come from .env (copy .env.example). Run: docker compose up -d, then see RUN.md for the URL.
+services:
+  model:
+    # ponytail: CPU only; Docker on Windows can't use the Intel Arc GPU. Swap in a :server-cuda image on an NVIDIA machine.
+    image: ghcr.io/ggml-org/llama.cpp:server
+    command: ["-m", "/models/model.gguf", "--alias", "qwen3.5-9b", "--jinja", "-c", "32768", "--host", "0.0.0.0", "--port", "8080", "--api-key", "${MODEL_API_KEY:?set MODEL_API_KEY in .env}"]
+    volumes:
+      - type: bind
+        source: "${MODEL_FILE:?set MODEL_FILE in .env}"
+        target: /models/model.gguf
+        read_only: true
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/health"]
+      interval: 10s
+      start_period: 5m
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--url", "http://model:8080"]
+    depends_on:
+      model:
+        condition: service_healthy
+    restart: unless-stopped

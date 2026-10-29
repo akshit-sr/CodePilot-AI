@@ -1,57 +1,96 @@
-# Run with the local Qwen model
+# Run and deploy
+
+CodePilot runs as one Cloudflare Worker (`worker/`) that serves the built React
+site and the API. Sign-in is Clerk, data is Supabase, reviews come from the
+Qwen endpoint in `worker/wrangler.toml`.
+
+## One-time setup
+
+1. Install: `npm.cmd install` in the repo root, `bun install` in `worker/`.
+2. Supabase: run `supabase/migrations/0001_init.sql` once in the project's SQL
+   editor (already done for `kznbombadogwizvsruep`).
+3. Keys, all kept out of Git:
+   - `frontend/.env`: `VITE_CLERK_PUBLISHABLE_KEY=pk_...` (Clerk -> API keys).
+     It is public and ends up in the built site; that is expected.
+   - `worker/.dev.vars`, for local runs:
+     ```
+     CLERK_SECRET_KEY=sk_...
+     SUPABASE_SECRET_KEY=sb_secret_...
+     ```
+
+## Run locally
 
 ```powershell
-uv sync
-.\start.ps1
+npm.cmd run build          # build the site into frontend/dist
+cd worker; bun run dev     # site + API on http://127.0.0.1:8787
 ```
 
-The npm `cloudflared` package and the frontend build tools must be installed
-once with `npm.cmd install`.
-If npm blocks its install script, `start.ps1` downloads the executable on its
-first run. Do not run `npm.cmd ci` while the tunnel is running; Windows locks
-the executable. After installation, no npm command is needed to start it.
+For frontend work, also run `npm.cmd run dev` (http://127.0.0.1:5173, hot
+reload; API calls go to the Worker on 8787). Restart `bun run dev` after a
+`npm.cmd run build`, or it serves 404 for the page.
 
-`start.ps1` starts the local Qwen model and FastAPI service, waits for both to
-be ready, then prints a public `https://...trycloudflare.com` URL. Open that
-URL to use the frontend; its `/review` request goes back through the same
-tunnel to FastAPI on port 8000. Keep both PowerShell windows open while using
-the demo. The quick URL changes each time and is public to anyone who has it.
+## Deploy
 
-`run_service.py` starts:
+First time only:
 
-- `F:\llama\llama-b10331-bin-win-vulkan-x64\llama-server.exe`
-- `F:\llama\llama_cache\models--unsloth--qwen3.5-9B-GGUF\snapshots\3885219b6810b007914f3a7950a8d1b469d598a5\Qwen3.5-9B-Q4_K_M.gguf`
-- the FastAPI service at `http://127.0.0.1:8000`
+```powershell
+cd worker
+bunx wrangler login                               # opens the browser
+bunx wrangler secret put CLERK_SECRET_KEY         # paste sk_...
+bunx wrangler secret put SUPABASE_SECRET_KEY      # paste sb_secret_...
+```
 
-Override paths with `CODEPILOT_LLAMA_SERVER_EXE` and `CODEPILOT_MODEL_PATH`.
+Every deploy:
 
-## Publish the review page through Cloudflare
+```powershell
+cd worker; bun run deploy    # builds the site, then uploads the Worker
+```
 
-The page at `/` sends `POST /review` to the same origin. Keep the FastAPI and
-Qwen ports bound to `127.0.0.1`; publish only port 8000 through a named
-Cloudflare Tunnel for a stable hostname. The older `test-fd/frontend_server.py`
-is not needed.
+The site is then at `https://codepilot.<your-subdomain>.workers.dev`.
+Wrangler asks you to pick the subdomain on the first deploy.
 
-1. Have an active domain in Cloudflare. In **Zero Trust > Access controls >
-   Applications**, create a self-hosted application for the hostname you will
-   use, such as `review.example.com`. Add an Allow policy for the people who
-   may use it. Do this before publishing the hostname.
-2. Run `npm.cmd install` once in this repo. This installs the npm `cloudflared`
-   wrapper and Cloudflare's Windows binary. In
-   **Networking > Tunnels**, create a remotely managed tunnel and copy its
-   token. Keep the token out of Git.
-3. Add a **Published application** route: hostname `review.example.com`,
-   service URL `http://127.0.0.1:8000`. Enable **Protect with Access** for the
-   route so `cloudflared` validates Access tokens.
-4. Set `$env:TUNNEL_TOKEN = '<token>'`, then run `.\start.ps1`. It will use the
-   named tunnel instead of a quick tunnel. Check
-   `Invoke-RestMethod http://127.0.0.1:8000/health`, then open
-   `https://review.example.com/` and sign in through Access. Submit a short
-   Python snippet to check the full review path; `/health` only checks the API.
+When the Qwen tunnel URL changes, edit `MODEL_URL` in `worker/wrangler.toml`
+and run `bun run deploy` again. Other settings there: `MODEL_NAME`,
+`MODEL_TIMEOUT_MS`, `SUPABASE_URL`, `DAILY_REVIEW_LIMIT`.
 
-The computer, model process, and tunnel connector must remain running. The
-public hostname stays the same across restarts, but the app is unavailable
-while the computer is off. Do not add the model's port 8080 as a public route.
-For automatic tunnel startup after a reboot, install the connector as a
-Windows service using Cloudflare's dashboard instructions; the model and API
-must also be started separately.
+### Clerk production keys
+
+The deploy above uses Clerk's development keys, which work on any domain but
+show a "Development mode" badge. Clerk's production instance needs a domain you
+own. Once you have one: create the production instance in the Clerk dashboard,
+put its `pk_live_...` in `frontend/.env`, run
+`bunx wrangler secret put CLERK_SECRET_KEY` with its `sk_live_...`, and deploy.
+
+## Backup model (Docker)
+
+When the main Qwen endpoint fails, the Worker retries on a backup: Qwen 3.5 9B
+running in Docker on this computer, reachable through a Cloudflare quick tunnel.
+
+One-time: install Docker Desktop, copy `.env.example` to `.env`, set
+`MODEL_FILE` to your `.gguf` file and `MODEL_API_KEY` to a long random string,
+then give the Worker the same key:
+
+```powershell
+cd worker; bunx wrangler secret put FALLBACK_MODEL_KEY   # paste MODEL_API_KEY
+```
+
+Start it (from the repo root):
+
+```powershell
+docker compose up -d
+docker compose logs tunnel | Select-String trycloudflare.com
+```
+
+Put that URL plus `/v1/chat/completions` in `FALLBACK_MODEL_URL` in
+`worker/wrangler.toml`, then `cd worker; bun run deploy`. The quick-tunnel URL
+changes whenever the tunnel container restarts; repeat this step then.
+
+`docker compose down` stops it. The model runs on the CPU (Docker on Windows
+can't use the Intel Arc GPU), so backup reviews are slow; the first start also
+takes a minute or two to load the model. Locally the model is also at
+`http://127.0.0.1:8080`, so `worker/.dev.vars` can use
+`FALLBACK_MODEL_URL=http://127.0.0.1:8080/v1/chat/completions` plus
+`FALLBACK_MODEL_KEY` for `bun run dev`.
+
+Without the API key anyone with the tunnel URL could use the model; keep
+`MODEL_API_KEY` set.

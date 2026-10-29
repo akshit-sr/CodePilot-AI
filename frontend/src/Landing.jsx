@@ -118,7 +118,7 @@ function Demo() {
       </div>
       <button className="btn-ink" onClick={() => setRun(r => r + 1)}>{run ? "Mark it again" : "Mark it up"} <PenLine size={16} /></button>
       <p className="demo-tally" aria-live="polite">{run > 0 && <span key={run} style={{ "--d": demo.notes.length + 1 }}>
-        {demo.notes.length} notes in the margin. <a href="#/signup">Try your own code →</a>
+        {demo.notes.length} notes in the margin. <a href="#signup">Try your own code →</a>
       </span>}</p>
     </div>
     <div className="demo-paper">
@@ -156,8 +156,8 @@ export default function Landing() {
       <button className="navlink" onClick={() => scrollTo("how")}>How it works</button>
       <button className="navlink" onClick={() => scrollTo("try")}>Try it</button>
       <button className="navlink" onClick={() => scrollTo("languages")}>Languages</button>
-      <a className="navlink" href="#/signin">Sign in</a>
-      <a className="btn-ink small" href="#/signup">Get started</a>
+      <a className="navlink" href="#signin">Sign in</a>
+      <a className="btn-ink small" href="#signup">Get started</a>
     </Masthead>
 
     <main className="landing" ref={page}>
@@ -167,8 +167,8 @@ export default function Landing() {
           <h1>Every program deserves a <em>second reader.</em></h1>
           <p>CodePilot reads your code the way a careful marker would. It flags bugs, security holes and messy corners in the margin, line by line, then hands you a revised draft.</p>
           <div className="cta">
-            <a className="btn-ink" href="#/signup">Start reviewing <ArrowRight size={16} /></a>
-            <a className="textlink" href="#/signin">I already have an account</a>
+            <a className="btn-ink" href="#signup">Start reviewing <ArrowRight size={16} /></a>
+            <a className="textlink" href="#signin">I already have an account</a>
           </div>
           <div className="facts">
             <span><b>12</b>languages</span>
@@ -257,8 +257,8 @@ export default function Landing() {
       <section className="closing" data-reveal>
         <h2>Hand in your <em>first file.<svg className="pen-wave" viewBox="0 0 200 10" preserveAspectRatio="none" aria-hidden="true"><path d={penWave} pathLength="1" /></svg></em></h2>
         <div className="cta">
-          <a className="btn-paper" href="#/signup">Start reviewing <ArrowRight size={16} /></a>
-          <a className="textlink on-ink" href="#/signin">Sign in</a>
+          <a className="btn-paper" href="#signup">Start reviewing <ArrowRight size={16} /></a>
+          <a className="textlink on-ink" href="#signin">Sign in</a>
         </div>
       </section>
     </main>
