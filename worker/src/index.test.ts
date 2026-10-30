@@ -40,6 +40,11 @@ async function supabase(url: URL, init: RequestInit) {
         rows.reviews.push(row);
         return Response.json([{ id: row.id }], { status: 201 });
       }
+      if (init.method === "DELETE") {
+        const gone = rows.reviews.filter(r => r.user_id === eq("user_id") && r.id === eq("id"));
+        rows.reviews = rows.reviews.filter(r => !gone.includes(r));
+        return Response.json(gone);
+      }
       return Response.json(rows.reviews.filter(r => r.user_id === eq("user_id") && (!q.has("id") || r.id === eq("id"))));
     case "/rest/v1/daily_usage":
       return Response.json(rows.usage[eq("user_id")!] ? [{ reviews: rows.usage[eq("user_id")!] }] : []);
@@ -68,7 +73,7 @@ test("health and languages are public", async () => {
   expect(await (await app.request("/languages", {}, env)).json()).toEqual(LANGUAGES);
 });
 
-test.each([["/review", "POST"], ["/history", "GET"], ["/history/x", "GET"], ["/usage", "GET"]])("%s needs a signed-in user", async (path, method) => {
+test.each([["/review", "POST"], ["/history", "GET"], ["/history/x", "GET"], ["/history/x", "DELETE"], ["/usage", "GET"]])("%s needs a signed-in user", async (path, method) => {
   for (const headers of [{}, { Authorization: "Bearer forged" }, { Authorization: "good" }]) {
     const res = await app.request(path, { method, headers }, env);
     expect([res.status, (await res.json()).detail]).toEqual([401, "sign_in_required"]);
@@ -121,6 +126,26 @@ test("history lists only your own reviews, and opens one by id", async () => {
   expect(await (await get(`/history/${mine}`)).json()).toMatchObject({ id: mine, code: "x = 1", improved_code: "y = 2" });
   expect((await get(`/history/${mine}`, "other")).status).toBe(404);
   expect((await get("/history/not-a-uuid")).status).toBe(404);
+});
+
+test("deleting a review: only your own, then it's gone", async () => {
+  model(() => answer('{"findings": []}'));
+  const mine = (await (await review({ code: "x = 1", filename: "a.py" })).json()).id;
+  const theirs = (await (await review({ code: "x = 2", filename: "b.py" }, env, "other")).json()).id;
+  const del = (id: string, token = "good") => app.request(`/history/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }, env);
+  expect((await del(theirs)).status).toBe(404);
+  expect((await del("not-a-uuid")).status).toBe(404);
+  expect((await del(mine)).status).toBe(204);
+  expect((await get(`/history/${mine}`)).status).toBe(404);
+  expect(await (await get("/history")).json()).toEqual([]);
+  expect((await del(mine)).status).toBe(404);
+  expect((await get(`/history/${theirs}`, "other")).status).toBe(200);
+});
+
+test("the prompt asks for comments to be left alone", async () => {
+  const calls = model(() => answer('{"findings": []}'));
+  await review({ code: "# keep me\nx = 1" });
+  expect(calls[0].body.messages[1].content).toContain("Leave every comment exactly as written");
 });
 
 test("findings are passed through, extra keys dropped, numeric strings accepted", async () => {

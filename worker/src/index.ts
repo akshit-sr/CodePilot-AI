@@ -24,6 +24,7 @@ class ApiError extends Error {
 const prompt = (code: string, language: string, filename: string) => `Review this ${LANGUAGES[language]} source file (${filename}). Return only valid JSON matching this schema:
 {"findings":[{"type":"string","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}],"improved_code":"string or null"}
 Report actionable bugs, security issues, and maintainability problems. Use 1-based line and column numbers.
+Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
 
 SOURCE:
 \`\`\`${language}
@@ -147,6 +148,13 @@ app.get("/history/:id", signedIn, async c => {
   const rows = UUID.test(id) ? await db(c.env, `reviews?select=*&id=eq.${id}&user_id=eq.${encodeURIComponent(c.get("user"))}`) as object[] : [];
   if (!rows.length) throw new ApiError(404, "not_found");
   return c.json(rows[0]);
+});
+
+app.delete("/history/:id", signedIn, async c => {
+  const id = c.req.param("id");
+  const rows = UUID.test(id) ? await db(c.env, `reviews?id=eq.${id}&user_id=eq.${encodeURIComponent(c.get("user"))}`, { method: "DELETE", headers: { Prefer: "return=representation" } }) as object[] : [];
+  if (!rows.length) throw new ApiError(404, "not_found");
+  return c.body(null, 204);
 });
 
 app.onError((e, c) => {
