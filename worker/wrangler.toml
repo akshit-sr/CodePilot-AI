@@ -8,7 +8,7 @@ directory = "../frontend/dist"
 
 [vars]
 # Your Qwen endpoint. When the tunnel URL changes: edit this line, then run `bun run deploy`.
-MODEL_URL = "https://alphabetical-river-only-assessments.trycloudflare.com/v1/chat/completions"
+MODEL_URL = "https://sterling-draws-approaches-protein.trycloudflare.com/v1/chat/completions"
 MODEL_NAME = "qwen3.8-27b-uncensored-mtp:latest"
 MODEL_TIMEOUT_MS = "120000"
 # Backup model, tried when the one above fails: the Docker model's tunnel URL (see RUN.md) + /v1/chat/completions.
