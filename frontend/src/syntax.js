@@ -17,9 +17,32 @@ export function syntaxChecker(grammarUrl, runtime) {
     parser.setLanguage(await Language.load(grammarUrl(lang)));
     return parser;
   });
-  const hasError = async (code, lang) => (await parserFor(lang)).parse(code).rootNode.hasError;
+  // Trees live in WebAssembly memory: hold on to each one while it's in use and free it after.
+  // A tree nothing refers to can be freed by the garbage collector mid-walk, which corrupts the result.
+  const withTree = async (code, lang, use) => {
+    const tree = (await parserFor(lang)).parse(code);
+    try { return use(tree); } finally { tree.delete(); }
+  };
+  const hasError = (code, lang) => withTree(code, lang, tree => tree.rootNode.hasError);
+  // Every comment's text with whitespace squashed, so re-indenting a block comment doesn't count as a change.
+  const comments = (code, lang) => withTree(code, lang, tree => {
+    const out = [], cursor = tree.walk();
+    try {
+      for (;;) {
+        const isComment = cursor.nodeType.includes("comment");
+        if (isComment) out.push(cursor.currentNode.text.replace(/\s+/g, " ").trim());
+        if (!isComment && cursor.gotoFirstChild()) continue;
+        while (!cursor.gotoNextSibling()) if (!cursor.gotoParent()) return out;
+      }
+    } finally { cursor.delete(); }
+  });
   return {
     hasError,
+    // True when every comment in `before` is still in `after`, word for word. New comments are allowed.
+    async keepsComments(before, after, lang) {
+      const left = await comments(after, lang);
+      return (await comments(before, lang)).every(c => { const i = left.indexOf(c); return i >= 0 && left.splice(i, 1); });
+    },
     // ponytail: first clean parse wins; swap for a real classifier if guesses are often wrong
     async detect(code, selected) {
       for (const lang of DETECT_ORDER)

@@ -1,0 +1,28 @@
+// Every call the frontend makes to the Worker, in one place. Signed-in calls carry the Clerk session token.
+import { useAuth } from "@clerk/react";
+
+export function useApi() {
+  const { getToken } = useAuth();
+
+  const signedIn = async (path, init = {}) =>
+    fetch(path, { ...init, headers: { ...init.headers, Authorization: `Bearer ${await getToken()}` } });
+
+  return {
+    // Public.
+    health: () => fetch("/health").then(r => r.ok, () => false),
+    languages: () => fetch("/languages").then(r => r.json()),
+
+    // Signed in. These resolve to the parsed JSON, or false if the server said no.
+    usage: () => signedIn("/usage").then(r => r.ok && r.json()),
+    history: () => signedIn("/history").then(r => r.ok && r.json()),
+
+    // Signed in. These resolve to the raw Response, because the caller handles each status itself.
+    review: ({ code, language, filename }) => signedIn("/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, language, filename }),
+    }),
+    openReview: id => signedIn(`/history/${id}`),
+    deleteReview: id => signedIn(`/history/${id}`, { method: "DELETE" }),
+  };
+}

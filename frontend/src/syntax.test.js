@@ -32,6 +32,16 @@ for (const [lang, [valid, broken]] of Object.entries(SAMPLES))
     expect(await check.hasError(EXAMPLES[lang][1], lang)).toBe(false);
   });
 
+test("comments must survive a rewrite word for word", async () => {
+  const before = "# load config\nx = 1  # default\n";
+  expect(await check.keepsComments(before, "# load config\nx = 2  # default\n# new note\n", "python")).toBe(true);
+  expect(await check.keepsComments(before, "# load the config\nx = 1  # default\n", "python")).toBe(false);
+  expect(await check.keepsComments(before, "x = 1  # default\n", "python")).toBe(false);
+  expect(await check.keepsComments(before, "s = '# load config'\nx = 1  # default\n", "python")).toBe(false);
+  expect(await check.keepsComments("/**\n * Adds.\n */\nfn add() {} // sum", "    /**\n     * Adds.\n     */\nfn add() { } // sum", "rust")).toBe(true);
+  expect(await check.keepsComments("/* a */ int x; // b", "int x; // b", "c")).toBe(false);
+});
+
 test("suggests the right language", async () => {
   expect(await check.detect("const x = () => { return 1 }", "python")).toBe("javascript");
 });
