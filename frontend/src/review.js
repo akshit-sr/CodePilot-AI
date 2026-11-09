@@ -33,7 +33,7 @@ export const ERRORS = {
   model_timeout: "The model took too long to answer. Try again in a moment.",
   malformed_model_output: "The model returned an unreadable review. Try again.",
   sign_in_required: "Your session has expired. Sign out and sign in again.",
-  daily_limit_reached: "You’ve used all of today’s reviews. The count resets at midnight UTC.",
+  daily_limit_reached: "You’ve used all your reviews for now. The count resets every 3 hours.",
   database_unavailable: "The review service can’t reach its database. Try again in a moment.",
 };
 

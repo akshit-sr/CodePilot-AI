@@ -273,3 +273,49 @@
   .caret { animation: none; }
   .scan { display: none; }
 }
+
+.eval-note { font: italic 15px var(--serif); color: var(--ink-3); }
+.eval-charts { --s0: #2a78d6; --s1: #eb6834; }
+:root[data-theme="dark"] .eval-charts { --s0: #3987e5; --s1: #d95926; }
+.s0 { --sc: var(--s0); } .s1 { --sc: var(--s1); }
+.clegend { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 8px 0 18px; font-size: 14px; }
+.clegend span { display: inline-flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.clegend i { flex: none; width: 12px; height: 12px; border-radius: 3px; background: var(--sc); }
+.clegend em { font: italic 13px var(--serif); color: var(--ink-3); }
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+@media (max-width: 760px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+.chart { margin: 0; padding: 20px 22px 18px; background: var(--paper); border-radius: 3px; box-shadow: var(--shadow); }
+.chart.wide { grid-column: 1 / -1; }
+.chart figcaption { margin-bottom: 14px; font: 600 19px var(--serif); }
+.chart figcaption span { margin-left: 10px; font: italic 400 14px var(--serif); color: var(--ink-3); }
+.cgroup { margin-bottom: 16px; }
+.cgroup > p { margin: 0 0 6px; font-size: 13.5px; color: var(--ink-2); }
+.cfiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 0 28px; }
+.cbar { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 5.5em; align-items: center; gap: 10px; margin-top: 2px; }
+.ctrack { height: 12px; overflow: hidden; border-radius: 0 4px 4px 0; background: var(--paper-2); }
+.cfill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--sc); transform-origin: left; animation: grow .8s cubic-bezier(.2, .7, .2, 1) both; }
+.cfail { display: block; height: 100%; background: repeating-linear-gradient(45deg, var(--ink-3) 0 2px, transparent 2px 6px); opacity: .55; }
+.cbar b { font: 600 13px var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; }
+.cbar:hover::after, .cbar:focus-visible::after { content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 2; max-width: 100%; padding: 6px 9px; border-radius: 3px; background: var(--ink); color: var(--paper); font: 12.5px var(--sans); pointer-events: none; }
+.caxis { display: flex; justify-content: space-between; margin-right: calc(5.5em + 10px); padding-top: 4px; border-top: 1px solid var(--rule); font-size: 11.5px; color: var(--ink-3); }
+.chero { margin: 0 0 14px; font: italic 15px var(--serif); color: var(--ink-2); }
+.chero b { margin-right: 8px; font: 600 40px/1 var(--serif); color: var(--ink); }
+@keyframes grow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .cfill { animation: none; } }
+.eval-scroll { margin-top: 36px; overflow-x: auto; }
+.eval-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.eval-table th, .eval-table td { padding: 10px 12px; border-bottom: 1px solid var(--rule); text-align: left; white-space: nowrap; }
+.eval-table code { font: 13px var(--mono); }
+.eval-file { padding: 0; border: 0; background: none; color: var(--pen); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
+.eval-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 28px; margin-top: 20px; }
+.eval-detail h3 { margin: 0 0 10px; font: 600 18px var(--serif); overflow-wrap: anywhere; }
+.eval-code { margin: 0; padding: 12px 0; overflow-x: auto; background: var(--paper); border-radius: 3px; box-shadow: var(--shadow); font: 13px/24px var(--mono); tab-size: 4; }
+.eval-code > div { padding-right: 12px; white-space: pre; }
+.eval-code .ln { display: inline-block; width: 36px; padding-right: 12px; text-align: right; color: var(--ink-3); }
+.eval-code .bug { background: color-mix(in srgb, var(--pen) 14%, transparent); }
+.eval-code em { margin-left: 14px; font: italic 12px var(--serif); color: var(--pen); }
+.eval-findings { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.eval-findings li { padding: 2px 0 2px 12px; border-left: 2px solid var(--pen); }
+.eval-findings li.extra { border-left-color: var(--ink-3); }
+.eval-findings span { font: italic 13px var(--serif); color: var(--ink-3); }
+.eval-findings p { margin: 4px 0 0; color: var(--ink-2); }

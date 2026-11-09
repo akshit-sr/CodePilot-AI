@@ -81,7 +81,8 @@ export default function Workspace() {
   return <>
     <Masthead>
       <span className={"status " + (online === true ? "up" : online === false ? "down" : "")}><i />{onlineLabel}</span>
-      {usage && <span className="quota">{usage.left} of {usage.limit} reviews left today</span>}
+      {usage && <span className="quota">{usage.left} of {usage.limit} reviews left · resets {new Date(usage.resets_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}
+      <a className="navlink" href="#eval">Evaluate model</a>
       <a className="navlink" href="#" onClick={e => { e.preventDefault(); signOut({ redirectUrl: "/#" }); }}>Sign out</a>
     </Masthead>
 

@@ -12,7 +12,7 @@ const { default: app, LANGUAGES } = await import("./index");
 type Env = import("./index").Env;
 
 const MODEL = "https://model.test/v1/chat/completions", DB = "https://db.test";
-const env: Env = { MODEL_URL: MODEL, MODEL_NAME: "qwen-primary", SUPABASE_URL: DB, SUPABASE_SECRET_KEY: "sb_secret_test", CLERK_SECRET_KEY: "sk_test", DAILY_REVIEW_LIMIT: "3" };
+const env: Env = { MODEL_URL: MODEL, MODEL_NAME: "qwen-primary", SUPABASE_URL: DB, SUPABASE_SECRET_KEY: "sb_secret_test", CLERK_SECRET_KEY: "sk_test", REVIEW_LIMIT: "3" };
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
 
@@ -46,7 +46,7 @@ async function supabase(url: URL, init: RequestInit) {
         return Response.json(gone);
       }
       return Response.json(rows.reviews.filter(r => r.user_id === eq("user_id") && (!q.has("id") || r.id === eq("id"))));
-    case "/rest/v1/daily_usage":
+    case "/rest/v1/usage_windows":
       return Response.json(rows.usage[eq("user_id")!] ? [{ reviews: rows.usage[eq("user_id")!] }] : []);
   }
   throw new Error(`unexpected db call ${url}`);
@@ -92,14 +92,18 @@ test("review contract: model call, saved to history, counted against the limit",
   expect(rows.reviews[0]).toMatchObject({ user_id: "user_1", filename: "main.py", language: "python", code: "print('ok')", findings: [], improved_code: null });
 });
 
-test("daily limit: the 4th review of 3 is refused without calling the model", async () => {
+test("usage limit: the 4th review of 3 is refused without calling the model", async () => {
   const calls = model(() => answer('{"findings": []}'));
   for (const left of [2, 1, 0]) expect((await (await review({ code: "x = 1" })).json()).reviews_left).toBe(left);
   const res = await review({ code: "x = 1" });
   expect([res.status, (await res.json()).detail]).toEqual([429, "daily_limit_reached"]);
   expect(calls.length).toBe(3);
-  expect(await (await get("/usage")).json()).toEqual({ limit: 3, used: 3, left: 0 });
-  expect(await (await get("/usage", "other")).json()).toEqual({ limit: 3, used: 0, left: 3 });
+  expect(await (await get("/usage")).json()).toMatchObject({ limit: 3, used: 3, left: 0 });
+  expect(await (await get("/usage", "other")).json()).toMatchObject({ limit: 3, used: 0, left: 3 });
+  const reset = Date.parse((await (await get("/usage")).json()).resets_at);
+  expect(reset).toBeGreaterThan(Date.now());
+  expect(reset - Date.now()).toBeLessThanOrEqual(3 * 3600_000);
+  expect(reset % (3 * 3600_000)).toBe(0);
 });
 
 test("a failed model call gives the review back", async () => {
@@ -146,6 +150,12 @@ test("the prompt asks for comments to be left alone", async () => {
   const calls = model(() => answer('{"findings": []}'));
   await review({ code: "# keep me\nx = 1" });
   expect(calls[0].body.messages[1].content).toContain("Leave every comment exactly as written");
+});
+
+test("the prompt numbers each source line", async () => {
+  const calls = model(() => answer('{"findings": []}'));
+  await review({ code: "a = 1\nb = 2" });
+  expect(calls[0].body.messages[1].content).toContain("1| a = 1\n2| b = 2");
 });
 
 test("findings are passed through, extra keys dropped, numeric strings accepted", async () => {
