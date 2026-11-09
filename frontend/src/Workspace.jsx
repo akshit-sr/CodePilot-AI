@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Masthead } from "./shell.jsx";
 import { SAMPLES } from "./samples.js";
-import { FALLBACK_LANGUAGES, LEVELS, LIMIT, diffLines, languageFor } from "./review.js";
+import { FALLBACK_LANGUAGES, LEVELS, LIMIT, diffLines, download, languageFor } from "./review.js";
 import { useDraft } from "./hooks/useDraft.js";
 import { useReview } from "./hooks/useReview.js";
 import { usePinnedNotes } from "./hooks/usePinnedNotes.js";
@@ -115,6 +115,7 @@ export default function Workspace() {
             hasCode={!!code}
             onAttach={openFile}
             onExample={() => server.load(SAMPLES[language][1], SAMPLES[language][0], language)}
+            onDownload={() => download(filename, code, language)}
             onClear={() => server.load("", filename, language)}
           />
         </div>
@@ -136,6 +137,7 @@ export default function Workspace() {
             rows={diff}
             copied={copied}
             onCopy={() => copy(review.improved)}
+            onDownload={() => download(filename, review.improved, language)}
             onUse={() => server.load(review.improved, filename, language)}
           />}
 

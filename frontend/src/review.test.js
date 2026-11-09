@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { diffLines, humanize, languageFor, toNotes } from "./review.js";
+import { diffLines, downloadName, humanize, languageFor, toNotes } from "./review.js";
 
 test("findings become numbered notes, sorted by line then severity", () => {
   const notes = toNotes([
@@ -32,4 +32,10 @@ test("small helpers", () => {
   expect(humanize(undefined)).toBe("Finding");
   expect(languageFor("Main.PY")).toBe("python");
   expect(languageFor("notes.txt")).toBeUndefined();
+});
+
+test("download names get the language's extension only when missing one", () => {
+  expect(downloadName("main", "python")).toBe("main.py");
+  expect(downloadName("a.txt", "go")).toBe("a.txt");
+  expect(downloadName(" ", "cpp")).toBe("untitled.cpp");
 });

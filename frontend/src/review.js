@@ -92,3 +92,18 @@ export function diffLines(before, after) {
   }
   return rows.concat(b.slice(b.length - end).map((text, k) => [" ", text, b.length - end + k + 1]));
 }
+
+// "main" + python -> "main.py"; a name that already has an extension is kept.
+export const downloadName = (filename, lang) => {
+  const name = filename.trim() || "untitled";
+  return name.includes(".") ? name : `${name}.${Object.keys(EXT).find(e => EXT[e] === lang) ?? "txt"}`;
+};
+
+export function download(filename, text, lang) {
+  const a = Object.assign(document.createElement("a"), {
+    href: URL.createObjectURL(new Blob([text], { type: "text/plain" })),
+    download: downloadName(filename, lang),
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}

@@ -1,13 +1,17 @@
 """Scores each model on files with known bugs. Writes frontend/public/eval.json for the site's #eval page.
 
 Run from eval/:  uv run python run_eval.py   (set FALLBACK_MODEL_KEY to include the Docker backup model)
+                 uv run python run_eval.py quixbugs   (QuixBugs benchmark, after fetch_quixbugs.py)
+                 uv run python run_eval.py juliet     (NIST Juliet, after fetch_juliet.py)
+                 add --main-only to skip the backup model, --timeout=SECONDS for slow machines
 """
-import json, os, time, tomllib, urllib.request
+import json, os, shutil, sys, time, tomllib, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "frontend" / "public" / "eval.json"
+PROGRESS = Path(__file__).parent / ".progress"
 TOLERANCE = 1  # a finding within this many lines of a known bug counts as catching it
 
 CASES = [
@@ -105,7 +109,7 @@ SOURCE:
 
 def score(bugs, lines):
     """Returns (bugs caught, findings that match no bug)."""
-    near = lambda line, bug: abs(line - bug["line"]) <= TOLERANCE
+    near = lambda line, bug: any(abs(line - b) <= TOLERANCE for b in [bug["line"], *bug.get("also", [])])
     caught = [b for b in bugs if any(near(l, b) for l in lines)]
     false_alarms = [l for l in lines if not any(near(l, b) for b in bugs)]
     return caught, false_alarms
@@ -130,12 +134,22 @@ def review(url, model, key, case, timeout):
         return None
 
 
-def evaluate(name, url, key, timeout):
+def evaluate(name, url, key, timeout, cases, checkpoint=None):
+    # Finished files are saved to `checkpoint` as we go, so a stopped run resumes instead of starting over.
+    done = json.loads(checkpoint.read_text()) if checkpoint and checkpoint.exists() else {}
     results, caught_total, bugs_scored, findings, false_alarms, seconds = [], 0, 0, 0, 0, []
-    for case in CASES:
-        start = time.perf_counter()
-        found = review(url, name, key, case, timeout)
-        took = round(time.perf_counter() - start, 1)
+    for case in cases:
+        if case["file"] in done:
+            found, took = done[case["file"]]
+        else:
+            start = time.perf_counter()
+            found = review(url, name, key, case, timeout)
+            took = round(time.perf_counter() - start, 1)
+            if checkpoint and found is not None:
+                done[case["file"]] = [found, took]
+                checkpoint.write_text(json.dumps(done))
+        if found is not None:
+            print(f"  {case['file']}: done ({took}s)", flush=True)
         if found is None:
             results.append({"error": True, "seconds": took})
             continue
@@ -156,32 +170,46 @@ def evaluate(name, url, key, timeout):
 
 
 def main():
+    # `run_eval.py` scores our own CASES; `run_eval.py quixbugs|juliet` scores a benchmark from datasets/.
+    # `--main-only` skips the backup model; `--timeout=SECONDS` overrides MODEL_TIMEOUT_MS for slow machines.
+    args = sys.argv[1:]
+    bench = next((a for a in args if a in ("quixbugs", "juliet")), None)
+    if bench:
+        ds = json.loads((Path(__file__).parent / "datasets" / f"{bench}.json").read_text())
+        cases, out, suite = ds["cases"], OUT.with_name(f"eval-{bench}.json"), {k: ds[k] for k in ("title", "description", "source")}
+    else:
+        cases, out = CASES, OUT
+        suite = {"title": "Our test set", "description": f"{len(CASES)} files with {sum(len(c['bugs']) for c in CASES)} known bugs that we wrote."}
     env = tomllib.loads((ROOT / "worker" / "wrangler.toml").read_text())["vars"]
-    timeout = int(env.get("MODEL_TIMEOUT_MS", 120000)) / 1000
+    timeout = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--timeout=")), int(env.get("MODEL_TIMEOUT_MS", 120000)) / 1000)
     models = [(env["MODEL_NAME"], env["MODEL_URL"], None)]
-    if env.get("FALLBACK_MODEL_URL"):
+    if env.get("FALLBACK_MODEL_URL") and "--main-only" not in args:
         models.append((env["FALLBACK_MODEL_NAME"], env["FALLBACK_MODEL_URL"], os.environ.get("FALLBACK_MODEL_KEY")))
 
     scores = []
     for name, url, key in models:
-        print(f"Evaluating {name} ...")
-        scores.append(evaluate(name, url, key, timeout))
+        print(f"Evaluating {name} ...", flush=True)
+        checkpoint = PROGRESS / f"{out.stem}-{name.replace(':', '_')}.json"
+        checkpoint.parent.mkdir(exist_ok=True)
+        scores.append(evaluate(name, url, key, timeout, cases, checkpoint))
 
-    if all(m["failures"] == len(CASES) for m in scores):
-        raise SystemExit(f"Every model call failed (are the tunnels up?); left {OUT.relative_to(ROOT)} unchanged.")
-    OUT.write_text(json.dumps({
+    if all(m["failures"] == len(cases) for m in scores):
+        raise SystemExit(f"Every model call failed (are the tunnels up?); left {out.relative_to(ROOT)} unchanged.")
+    out.write_text(json.dumps({
+        "suite": suite,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "tolerance": TOLERANCE,
-        "total_bugs": sum(len(c["bugs"]) for c in CASES),
-        "cases": [{"file": c["file"], "language": c["language"], "code": c["code"], "bugs": c["bugs"]} for c in CASES],
+        "total_bugs": sum(len(c["bugs"]) for c in cases),
+        "cases": [{"file": c["file"], "title": c.get("title"), "language": c["language"], "code": c["code"], "bugs": c["bugs"]} for c in cases],
         "models": scores,
     }, indent=2))
+    shutil.rmtree(PROGRESS, ignore_errors=True)  # finished: next run starts fresh
 
     pct = lambda x: "-" if x is None else f"{x:.0%}"
     print(f"\n{'model':<40}{'caught':>8}{'real':>8}{'s/file':>8}{'failed':>8}")
     for m in scores:
         print(f"{m['name']:<40}{pct(m['recall']):>8}{pct(m['precision']):>8}{m['avg_seconds'] or '-':>8}{m['failures']:>8}")
-    print(f"\nWrote {OUT.relative_to(ROOT)}")
+    print(f"\nWrote {out.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
