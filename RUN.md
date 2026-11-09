@@ -109,3 +109,21 @@ $env:FALLBACK_MODEL_KEY = "<MODEL_API_KEY>"    # optional: include the Docker ba
 uv run python run_eval.py                      # needs the model tunnels up
 cd ..; npm.cmd run build                       # then deploy: cd worker; bun run deploy
 ```
+
+The page also has two benchmark tabs:
+
+- "QuixBugs benchmark": 14 programs from QuixBugs (Lin et al., SPLASH 2017,
+  MIT), each with one known bug located by diffing against the official fix.
+- "NIST Juliet (Java)": 10 test cases from NIST's Juliet Test Suite for Java
+  1.3 (samate.nist.gov/SARD), one per CWE, with comments and hints stripped.
+
+`eval/datasets/*.json` are committed; refetch only to change the case lists.
+Progress is saved per file, so a stopped run resumes where it left off.
+
+```powershell
+cd eval
+uv run python fetch_quixbugs.py                       # optional: rebuild datasets/quixbugs.json
+uv run python fetch_juliet.py                         # optional: rebuild datasets/juliet.json (downloads ~77 MB once)
+uv run python run_eval.py quixbugs --main-only --timeout=300  # writes frontend/public/eval-quixbugs.json
+uv run python run_eval.py juliet --main-only --timeout=300  # writes frontend/public/eval-juliet.json
+```

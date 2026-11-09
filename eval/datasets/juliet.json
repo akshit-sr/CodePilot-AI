@@ -1,0 +1,153 @@
+{
+  "title": "NIST Juliet (Java)",
+  "description": "10 test cases from the NIST Juliet Test Suite for Java 1.3 (Software Assurance Reference Dataset, samate.nist.gov), one per weakness type (CWE), in its simplest form. Comments, names and other hints that reveal the flaw were removed before review.",
+  "source": "https://samate.nist.gov/SARD/test-suites/111",
+  "cases": [
+    {
+      "file": "Case01.java",
+      "title": "CWE-89 SQL injection",
+      "language": "java",
+      "code": "import javax.servlet.http.*;\nimport java.sql.*;\nimport java.util.logging.Level;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        String data;\n        data = System.getenv(\"ADD\");\n        Connection dbConnection = null;\n        Statement sqlStatement = null;\n        try\n        {\n            dbConnection = IO.getDBConnection();\n            sqlStatement = dbConnection.createStatement();\n            int rowCount = sqlStatement.executeUpdate(\"insert into users (status) values ('updated') where name='\"+data+\"'\");\n            IO.writeLine(\"Updated \" + rowCount + \" rows successfully.\");\n        }\n        catch (SQLException exceptSql)\n        {\n            IO.logger.log(Level.WARNING, \"Error getting database connection\", exceptSql);\n        }\n        finally\n        {\n            try\n            {\n                if (sqlStatement != null)\n                {\n                    sqlStatement.close();\n                }\n            }\n            catch (SQLException exceptSql)\n            {\n                IO.logger.log(Level.WARNING, \"Error closing Statement\", exceptSql);\n            }\n            try\n            {\n                if (dbConnection != null)\n                {\n                    dbConnection.close();\n                }\n            }\n            catch (SQLException exceptSql)\n            {\n                IO.logger.log(Level.WARNING, \"Error closing Connection\", exceptSql);\n            }\n        }\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 17,
+          "also": [
+            10
+          ],
+          "label": "CWE-89 SQL injection"
+        }
+      ]
+    },
+    {
+      "file": "Case02.java",
+      "title": "CWE-78 OS command injection",
+      "language": "java",
+      "code": "import javax.servlet.http.*;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        String data;\n        data = System.getenv(\"ADD\");\n        String osCommand;\n        if(System.getProperty(\"os.name\").toLowerCase().indexOf(\"win\") >= 0)\n        {\n            osCommand = \"c:\\\\WINDOWS\\\\SYSTEM32\\\\cmd.exe /c dir \";\n        }\n        else\n        {\n            osCommand = \"/bin/ls \";\n        }\n        Process process = Runtime.getRuntime().exec(osCommand + data);\n        process.waitFor();\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 18,
+          "also": [
+            8
+          ],
+          "label": "CWE-78 OS command injection"
+        }
+      ]
+    },
+    {
+      "file": "Case03.java",
+      "title": "CWE-80 Cross-site scripting",
+      "language": "java",
+      "code": "import javax.servlet.http.*;\n\npublic class Example\n{\n    public void run(HttpServletRequest request, HttpServletResponse response) throws Throwable\n    {\n        String data;\n        data = request.getParameter(\"name\");\n        if (data != null)\n        {\n            response.getWriter().println(\"<br>run(): data = \" + data);\n        }\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 11,
+          "also": [
+            8
+          ],
+          "label": "CWE-80 Cross-site scripting"
+        }
+      ]
+    },
+    {
+      "file": "Case04.java",
+      "title": "CWE-23 Path traversal",
+      "language": "java",
+      "code": "import java.io.*;\nimport javax.servlet.http.*;\nimport java.util.logging.Level;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        String data;\n        data = System.getenv(\"ADD\");\n        String root;\n        if(System.getProperty(\"os.name\").toLowerCase().indexOf(\"win\") >= 0)\n        {\n            root = \"C:\\\\uploads\\\\\";\n        }\n        else\n        {\n            root = \"/home/user/uploads/\";\n        }\n        if (data != null)\n        {\n            File file = new File(root + data);\n            FileInputStream streamFileInputSink = null;\n            InputStreamReader readerInputStreamSink = null;\n            BufferedReader readerBufferdSink = null;\n            if (file.exists() && file.isFile())\n            {\n                try\n                {\n                    streamFileInputSink = new FileInputStream(file);\n                    readerInputStreamSink = new InputStreamReader(streamFileInputSink, \"UTF-8\");\n                    readerBufferdSink = new BufferedReader(readerInputStreamSink);\n                    IO.writeLine(readerBufferdSink.readLine());\n                }\n                catch (IOException exceptIO)\n                {\n                    IO.logger.log(Level.WARNING, \"Error with stream reading\", exceptIO);\n                }\n                finally\n                {\n                    try\n                    {\n                        if (readerBufferdSink != null)\n                        {\n                            readerBufferdSink.close();\n                        }\n                    }\n                    catch (IOException exceptIO)\n                    {\n                        IO.logger.log(Level.WARNING, \"Error closing BufferedReader\", exceptIO);\n                    }\n                    try\n                    {\n                        if (readerInputStreamSink != null)\n                        {\n                            readerInputStreamSink.close();\n                        }\n                    }\n                    catch (IOException exceptIO)\n                    {\n                        IO.logger.log(Level.WARNING, \"Error closing InputStreamReader\", exceptIO);\n                    }\n                    try\n                    {\n                        if (streamFileInputSink != null)\n                        {\n                            streamFileInputSink.close();\n                        }\n                    }\n                    catch (IOException exceptIO)\n                    {\n                        IO.logger.log(Level.WARNING, \"Error closing FileInputStream\", exceptIO);\n                    }\n                }\n            }\n        }\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 22,
+          "also": [
+            10
+          ],
+          "label": "CWE-23 Path traversal"
+        }
+      ]
+    },
+    {
+      "file": "Case05.java",
+      "title": "CWE-259 Hard-coded password",
+      "language": "java",
+      "code": "import java.util.logging.Level;\nimport java.io.*;\nimport java.net.PasswordAuthentication;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        String data;\n        data = \"7e5tc4s3\";\n        if (data != null)\n        {\n            PasswordAuthentication credentials = new PasswordAuthentication(\"user\", data.toCharArray());\n            IO.writeLine(credentials.toString());\n        }\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 13,
+          "also": [
+            10
+          ],
+          "label": "CWE-259 Hard-coded password"
+        }
+      ]
+    },
+    {
+      "file": "Case06.java",
+      "title": "CWE-327 Broken crypto (DES)",
+      "language": "java",
+      "code": "import javax.crypto.Cipher;\nimport javax.crypto.KeyGenerator;\nimport javax.crypto.SecretKey;\nimport javax.crypto.spec.SecretKeySpec;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        final String CIPHER_INPUT = \"ABCDEFG123456\";\n        KeyGenerator keyGenerator = KeyGenerator.getInstance(\"DES\");\n        keyGenerator.init(56);\n        SecretKey secretKey = keyGenerator.generateKey();\n        byte[] byteKey = secretKey.getEncoded();\n        SecretKeySpec secretKeySpec = new SecretKeySpec(byteKey, \"DES\");\n        Cipher desCipher = Cipher.getInstance(\"DES\");\n        desCipher.init(Cipher.ENCRYPT_MODE, secretKeySpec);\n        byte[] encrypted = desCipher.doFinal(CIPHER_INPUT.getBytes(\"UTF-8\"));\n        IO.writeLine(IO.toHex(encrypted));\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 15,
+          "also": [],
+          "label": "CWE-327 Broken crypto (DES)"
+        }
+      ]
+    },
+    {
+      "file": "Case07.java",
+      "title": "CWE-328 Weak hash (MD5)",
+      "language": "java",
+      "code": "import java.security.MessageDigest;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        String input = \"Test Input\";\n        MessageDigest messageDigest = MessageDigest.getInstance(\"MD5\");\n        byte[] hashValue = messageDigest.digest(input.getBytes(\"UTF-8\"));\n        IO.writeLine(IO.toHex(hashValue));\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 9,
+          "also": [
+            8
+          ],
+          "label": "CWE-328 Weak hash (MD5)"
+        }
+      ]
+    },
+    {
+      "file": "Case08.java",
+      "title": "CWE-369 Divide by zero",
+      "language": "java",
+      "code": "import javax.servlet.http.*;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        int data;\n        data = 0;\n        IO.writeLine(\"run: 100/\" + data + \" = \" + (100 / data) + \"\\n\");\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 9,
+          "also": [
+            8
+          ],
+          "label": "CWE-369 Divide by zero"
+        }
+      ]
+    },
+    {
+      "file": "Case09.java",
+      "title": "CWE-190 Integer overflow",
+      "language": "java",
+      "code": "import javax.servlet.http.*;\n\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        int data;\n        data = Integer.MAX_VALUE;\n        int result = (int)(data + 1);\n        IO.writeLine(\"result: \" + result);\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 9,
+          "also": [
+            8
+          ],
+          "label": "CWE-190 Integer overflow"
+        }
+      ]
+    },
+    {
+      "file": "Case10.java",
+      "title": "CWE-476 Null pointer dereference",
+      "language": "java",
+      "code": "\npublic class Example\n{\n    public void run() throws Throwable\n    {\n        {\n            String myString = null;\n            if ((myString != null) & (myString.length() > 0))\n            {\n                IO.writeLine(\"The string length is greater than 0\");\n            }\n        }\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 8,
+          "also": [],
+          "label": "CWE-476 Null pointer dereference"
+        }
+      ]
+    }
+  ]
+}
