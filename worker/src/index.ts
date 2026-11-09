@@ -12,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // (`wrangler secret put`, or .dev.vars locally). The fallback is the Docker backup model (compose.yaml).
 export type Env = {
   MODEL_URL: string; MODEL_NAME: string; MODEL_TIMEOUT_MS?: string; FALLBACK_MODEL_URL?: string; FALLBACK_MODEL_NAME?: string; FALLBACK_MODEL_KEY?: string;
-  SUPABASE_URL: string; SUPABASE_SECRET_KEY: string; CLERK_SECRET_KEY: string; DAILY_REVIEW_LIMIT?: string;
+  SUPABASE_URL: string; SUPABASE_SECRET_KEY: string; CLERK_SECRET_KEY: string; REVIEW_LIMIT?: string;
 };
 type Finding = { type: string; severity: string; line: number; column: number; explanation: string; suggested_fix: string };
 type Review = { findings: Finding[]; improved_code: string | null };
@@ -23,12 +23,13 @@ class ApiError extends Error {
 
 const prompt = (code: string, language: string, filename: string) => `Review this ${LANGUAGES[language]} source file (${filename}). Return only valid JSON matching this schema:
 {"findings":[{"type":"string","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}],"improved_code":"string or null"}
-Report actionable bugs, security issues, and maintainability problems. Use 1-based line and column numbers.
+Report actionable bugs, security issues, and maintainability problems. "type" is a short title for the problem, e.g. "SQL injection".
+Each source line below starts with its line number and "| "; use that number for "line". The numbers are not part of the code: leave them out of improved_code.
 Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
 
 SOURCE:
 \`\`\`${language}
-${code}
+${code.split("\n").map((line, i) => `${i + 1}| ${line}`).join("\n")}
 \`\`\``;
 
 // The model's JSON must have exactly findings (+ optional improved_code), each finding fully filled in.
@@ -85,7 +86,8 @@ async function db(env: Env, path: string, init: RequestInit = {}) {
   return response.status === 204 ? null : response.json();
 }
 const rpc = (env: Env, fn: string, args: object) => db(env, `rpc/${fn}`, { method: "POST", body: JSON.stringify(args) });
-const today = () => new Date().toISOString().slice(0, 10);
+const WINDOW_MS = 3 * 3600_000;   // usage resets every 3 hours, on the 00/03/06... UTC boundaries
+const windowStart = () => Math.floor(Date.now() / WINDOW_MS) * WINDOW_MS;
 
 type Vars = { user: string };
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -111,7 +113,7 @@ app.post("/review", signedIn, async c => {
   if (new TextEncoder().encode(body.code).length > MAX_CODE_SIZE) throw new ApiError(413, "code_too_large");
 
   const env = c.env, user = c.get("user"), timeout = Number(env.MODEL_TIMEOUT_MS || 120_000);
-  const left = await rpc(env, "take_review", { p_user: user, p_limit: Number(env.DAILY_REVIEW_LIMIT || 50) }) as number;
+  const left = await rpc(env, "take_review", { p_user: user, p_limit: Number(env.REVIEW_LIMIT || 50) }) as number;
   if (left < 0) throw new ApiError(429, "daily_limit_reached");
 
   let review: Review;
@@ -135,9 +137,10 @@ app.post("/review", signedIn, async c => {
 });
 
 app.get("/usage", signedIn, async c => {
-  const rows = await db(c.env, `daily_usage?select=reviews&user_id=eq.${encodeURIComponent(c.get("user"))}&day=eq.${today()}`) as { reviews: number }[];
-  const limit = Number(c.env.DAILY_REVIEW_LIMIT || 50);
-  return c.json({ limit, used: rows[0]?.reviews ?? 0, left: Math.max(limit - (rows[0]?.reviews ?? 0), 0) });
+  const start = encodeURIComponent(new Date(windowStart()).toISOString());
+  const rows = await db(c.env, `usage_windows?select=reviews&user_id=eq.${encodeURIComponent(c.get("user"))}&window_start=eq.${start}`) as { reviews: number }[];
+  const limit = Number(c.env.REVIEW_LIMIT || 50);
+  return c.json({ limit, used: rows[0]?.reviews ?? 0, left: Math.max(limit - (rows[0]?.reviews ?? 0), 0), resets_at: new Date(windowStart() + WINDOW_MS).toISOString() });
 });
 
 app.get("/history", signedIn, async c =>
