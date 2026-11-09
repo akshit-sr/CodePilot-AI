@@ -94,3 +94,18 @@ takes a minute or two to load the model. Locally the model is also at
 
 Without the API key anyone with the tunnel URL could use the model; keep
 `MODEL_API_KEY` set.
+
+## Model evaluation (Python)
+
+`eval/run_eval.py` sends 6 files with known bugs to both models in
+`worker/wrangler.toml` and scores them (bugs caught, findings that were real,
+seconds per file). It writes `frontend/public/eval.json`, which the site shows
+at `#eval` (the "Evaluate model" button in the top bar).
+
+```powershell
+cd eval
+uv run pytest                                  # scoring tests
+$env:FALLBACK_MODEL_KEY = "<MODEL_API_KEY>"    # optional: include the Docker backup model
+uv run python run_eval.py                      # needs the model tunnels up
+cd ..; npm.cmd run build                       # then deploy: cd worker; bun run deploy
+```

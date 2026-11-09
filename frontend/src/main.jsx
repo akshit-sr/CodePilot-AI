@@ -5,9 +5,10 @@ import { ClerkProvider, useAuth } from "@clerk/react";
 import Landing from "./Landing.jsx";
 import Auth from "./Auth.jsx";
 import Workspace from "./Workspace.jsx";
+import Eval from "./Eval.jsx";
 import "./styles.css";
 
-// Routes are hashes (#review, #signin, #signup, # for home), so the server only ever serves "/".
+// Routes are hashes (#review, #eval, #signin, #signup, # for home), so the server only ever serves "/".
 // No slash after "#": "#/…" belongs to Clerk's own form steps (#/factor-one, #/verify…).
 function Root() {
   const [route, setRoute] = useState(location.hash);
@@ -21,6 +22,7 @@ function Root() {
   }, []);
 
   if (route === "#review" && (isSignedIn || !isLoaded)) return isSignedIn ? <Workspace /> : null;
+  if (route === "#eval") return <Eval />;
 
   if (route === "#signin" || route === "#signup") form.current = route.slice(1);
   else if (route === "#review") form.current = "signin";   // signed out: sign in first

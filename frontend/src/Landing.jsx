@@ -156,6 +156,7 @@ export default function Landing() {
       <button className="navlink" onClick={() => scrollTo("how")}>How it works</button>
       <button className="navlink" onClick={() => scrollTo("try")}>Try it</button>
       <button className="navlink" onClick={() => scrollTo("languages")}>Languages</button>
+      <a className="navlink" href="#eval">Evaluate model</a>
       <a className="navlink" href="#signin">Sign in</a>
       <a className="btn-ink small" href="#signup">Get started</a>
     </Masthead>
