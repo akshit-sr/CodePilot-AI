@@ -7,6 +7,8 @@ export function useApi() {
   const signedIn = async (path, init = {}) =>
     fetch(path, { ...init, headers: { ...init.headers, Authorization: `Bearer ${await getToken()}` } });
 
+  const post = (path, body) => signedIn(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
   return {
     // Public.
     health: () => fetch("/health").then(r => r.ok, () => false),
@@ -22,6 +24,8 @@ export function useApi() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, language, filename }),
     }),
+    translate: ({ code, language, target }) => post("/translate", { code, language, target }),
+    flowchart: ({ code, language }) => post("/flowchart", { code, language }),
     openReview: id => signedIn(`/history/${id}`),
     deleteReview: id => signedIn(`/history/${id}`, { method: "DELETE" }),
   };

@@ -2,18 +2,18 @@ name = "codepilot"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
-# The built React app (`npm.cmd run build` at the repo root) is served as static files.
+# The built React app (`npm run build` at the repo root) is served as static files.
 [assets]
 directory = "../frontend/dist"
 
 [vars]
 # Your Qwen endpoint. When the tunnel URL changes: edit this line, then run `bun run deploy`.
-MODEL_URL = "https://paso-dos-relationship-paths.trycloudflare.com/v1/chat/completions"
+MODEL_URL = "https://encryption-honest-mary-jackets.trycloudflare.com/v1/chat/completions"
 MODEL_NAME = "qwen3.8-27b-uncensored-mtp:latest"
 MODEL_TIMEOUT_MS = "120000"
 # Backup model, tried when the one above fails: the Docker model's tunnel URL (see RUN.md) + /v1/chat/completions.
 # Leave empty for no backup. It changes each time the tunnel restarts: edit, then `bun run deploy`.
-FALLBACK_MODEL_URL = "https://internet-grammar-menus-phi.trycloudflare.com/v1/chat/completions"
+FALLBACK_MODEL_URL = "https://generator-interim-stood-rica.trycloudflare.com/v1/chat/completions"
 FALLBACK_MODEL_NAME = "qwen3.5-9b"
 # Your Supabase project URL (Project Settings -> API), e.g. https://abcdefgh.supabase.co
 SUPABASE_URL = "https://kznbombadogwizvsruep.supabase.co"

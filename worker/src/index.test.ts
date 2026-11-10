@@ -211,3 +211,48 @@ test.each([
   const res = await review({ code: "x = 1" });
   expect([res.status, (await res.json()).detail]).toEqual([502, "malformed_model_output"]);
 });
+
+const post = (path: string, body: object, token = "good") =>
+  app.request(path, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }, env);
+
+test("translate returns the model's code and counts one use", async () => {
+  const calls = model(() => answer('{"code": "let x = 1;"}'));
+  const res = await post("/translate", { code: "x = 1", language: "python", target: "javascript" });
+  expect(await res.json()).toEqual({ code: "let x = 1;", language: "javascript", reviews_left: 2 });
+  expect(calls[0].body.messages[1].content).toContain("to idiomatic JavaScript");
+});
+
+test("translate refuses an unknown target without using the model or a review", async () => {
+  const calls = model(() => answer("{}"));
+  expect((await post("/translate", { code: "x = 1", target: "cobol" })).status).toBe(422);
+  expect(calls.length).toBe(0);
+  expect(rows.usage.user_1 ?? 0).toBe(0);
+});
+
+test("a translation with no code gives the use back", async () => {
+  model(() => answer('{"code": ""}'));
+  expect((await post("/translate", { code: "x = 1", target: "go" })).status).toBe(502);
+  expect(rows.usage.user_1).toBe(0);
+});
+
+test("flowchart returns checked nodes and edges", async () => {
+  model(() => answer(JSON.stringify({
+    nodes: [{ id: "a", label: "start", kind: "start", line: 1 }, { id: "b", label: "x > 0?", kind: "weird", line: "2" }],
+    edges: [{ from: "a", to: "b" }],
+  })));
+  const data = await (await post("/flowchart", { code: "x = 1" })).json();
+  expect(data.nodes).toEqual([{ id: "a", label: "start", kind: "start", line: 1 }, { id: "b", label: "x > 0?", kind: "process", line: 2 }]);
+  expect(data.edges).toEqual([{ from: "a", to: "b", label: "" }]);
+  expect(data.reviews_left).toBe(2);
+});
+
+test("a flowchart edge to a missing node is malformed output", async () => {
+  model(() => answer('{"nodes":[{"id":"a","label":"s","kind":"start"}],"edges":[{"from":"a","to":"zzz"}]}'));
+  const res = await post("/flowchart", { code: "x = 1" });
+  expect([res.status, (await res.json()).detail]).toEqual([502, "malformed_model_output"]);
+  expect(rows.usage.user_1).toBe(0);
+});
+
+test.each(["/translate", "/flowchart"])("%s needs a signed-in user", async path => {
+  expect((await app.request(path, { method: "POST" }, env)).status).toBe(401);
+});

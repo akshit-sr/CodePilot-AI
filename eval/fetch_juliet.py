@@ -77,7 +77,7 @@ def main():
         cases.append({"file": f"Case{i:02}.java", "title": title, "language": "java", "code": code,
                       "bugs": [{"line": flaws[-1], "also": flaws[:-1], "label": title}]})
     OUT.write_text(json.dumps({
-        "title": "NIST Juliet (Java)",
+        "title": "NIST Juliet",
         "description": f"{len(cases)} test cases from the NIST Juliet Test Suite for Java 1.3 (Software Assurance Reference Dataset, "
                        "samate.nist.gov), one per weakness type (CWE), in its simplest form. Comments, names and other hints "
                        "that reveal the flaw were removed before review.",
