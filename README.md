@@ -1,147 +1,170 @@
-# CodePilot AI Review Service
+# CodePilot AI
 
-A code-review web app. You sign in, paste or attach a source file, and a Qwen
-model returns structured findings (type, severity, line, column, explanation,
-suggested fix) plus optional improved code, shown as notes in the margin.
+CodePilot is a browser-based code review workspace. Paste code or attach a
+source file to get line-level findings, suggested fixes, and an optional
+rewrite. You can also translate the code to another supported language,
+generate a flowchart and download it as SVG, or revisit saved reviews.
 
-It runs as one Cloudflare Worker that serves the React site and the API, with
-Clerk for accounts and Supabase (PostgreSQL) for review history and daily limits.
+The React frontend uses tree-sitter to check syntax before submitting a review.
+A Cloudflare Worker serves the built site and the API, verifies Clerk sessions,
+and calls a Qwen endpoint. Supabase stores review history and tracks usage.
 
-## How it works
+## Run locally on Windows
 
-1. **Browser:** the code is syntax-checked with tree-sitter (WebAssembly grammars
-   in `frontend/public/grammars/`). Broken code is stopped here, with a guess at
-   the language it does parse as.
-2. **Worker** (`worker/src/index.ts`), `POST /review`:
-   - checks the Clerk session token (`401 sign_in_required` without one);
-   - checks language and size;
-   - counts the review against the user's daily limit in one atomic database
-     call (`429 daily_limit_reached` once it is used up);
-   - sends the code to the Qwen endpoint, or to the Docker backup model if that
-     fails, and validates the JSON reply against a strict schema;
-   - saves the review to the user's history and returns it with `reviews_left`.
-   A failed model call gives the review back, so errors don't use up the limit.
-3. **Supabase** holds `profiles`, `reviews` and `daily_usage`. Row-level security
-   is on with no public policies, so only the Worker's secret key can read them.
+Install Git, Node.js 22.12 or newer, and Bun. In PowerShell, run each command
+from the folder where you want the project. If you already cloned the repo
+and entered its folder, start with `npm.cmd ci`.
+
+```powershell
+git clone https://github.com/akshit-sr/CodePilot-AI.git
+cd CodePilot-AI
+npm.cmd ci
+```
+
+Configure the services before building the site.
+
+1. In a new Supabase project, apply
+   [`0001_init.sql`](supabase/migrations/0001_init.sql) and then
+   [`0002_three_hour_window.sql`](supabase/migrations/0002_three_hour_window.sql).
+2. Put your Clerk publishable key in `frontend/.env` as
+   `VITE_CLERK_PUBLISHABLE_KEY`.
+3. Put `CLERK_SECRET_KEY` and `SUPABASE_SECRET_KEY` in `worker/.dev.vars`.
+   Use the Clerk secret from the same instance as the publishable key.
+4. Set `SUPABASE_URL`, `MODEL_URL`, and `MODEL_NAME` in
+   [`worker/wrangler.toml`](worker/wrangler.toml) for your Supabase project and
+   Qwen endpoint. `MODEL_URL` is the full OpenAI-compatible chat completions URL.
+
+From the repository root, build the site and start the Worker.
+
+```powershell
+npm.cmd run build
+cd worker
+bun install --frozen-lockfile
+bun run dev
+```
+
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787) for the site and API.
+See [RUN.md](RUN.md) for deployment, the optional Docker backup model, and
+benchmark commands.
 
 ## Supported languages
 
-| `language` value | Language   | `language` value | Language |
-| ---------------- | ---------- | ---------------- | -------- |
-| `python`         | Python     | `csharp`         | C#       |
-| `javascript`     | JavaScript | `go`             | Go       |
-| `typescript`     | TypeScript | `rust`           | Rust     |
-| `java`           | Java       | `php`            | PHP      |
-| `c`              | C          | `ruby`           | Ruby     |
-| `cpp`            | C++        | `kotlin`         | Kotlin   |
+The API accepts these case-insensitive language IDs.
 
-Values are case-insensitive. To add a language, add it to `LANGUAGES` in
-`worker/src/index.ts`, its grammar to `frontend/public/grammars/`, and an
-example to `frontend/src/samples.js`.
+| Language | ID | Language | ID |
+| --- | --- | --- | --- |
+| Python | `python` | C# | `csharp` |
+| JavaScript | `javascript` | Go | `go` |
+| TypeScript | `typescript` | Rust | `rust` |
+| Java | `java` | PHP | `php` |
+| C | `c` | Ruby | `ruby` |
+| C++ | `cpp` | Kotlin | `kotlin` |
 
-## Quick start
+## Usage and history
 
-See [RUN.md](RUN.md) for keys, local runs and deploying.
+Reviews, translations, and flowcharts draw from the same quota. The default is
+50 model requests per user in each three-hour block, starting at 00:00, 03:00,
+06:00 UTC, and so on. After a review, the browser starts preparing a flowchart
+and a translation in the background. Each successful request counts toward
+the quota. If a model request fails, the Worker attempts to return its use.
 
-```powershell
-npm install; npm run build
-cd worker; bun install; bun run dev    # http://127.0.0.1:8787
-```
+The Worker saves reviews with their submitted source. If saving fails, it
+still returns the review with a null `id`. History lists the latest 50 saved
+reviews for the signed-in user and lets that user delete individual entries.
 
-## Endpoints
+## API
 
-| Method | Path           | Sign-in | Purpose                                   |
-| ------ | -------------- | ------- | ----------------------------------------- |
-| GET    | `/health`      | no      | Liveness check                            |
-| GET    | `/languages`   | no      | Supported languages (id → name)           |
-| POST   | `/review`      | yes     | Review a source file                      |
-| GET    | `/usage`       | yes     | `{ limit, used, left }` for today (UTC)   |
-| GET    | `/history`     | yes     | Your last 50 reviews (id, file, language, date) |
-| GET    | `/history/:id` | yes     | One of your reviews in full               |
+Authenticated requests use `Authorization: Bearer <Clerk session token>`.
 
-Signed-in requests send `Authorization: Bearer <Clerk session token>`. The
-site itself is served as static files from `frontend/dist/`.
+| Method | Path | Sign-in | Result |
+| --- | --- | --- | --- |
+| GET | `/health` | No | Service status |
+| GET | `/languages` | No | Supported language IDs and names |
+| POST | `/review` | Yes | `findings`, `improved_code`, `id`, and `reviews_left` |
+| POST | `/translate` | Yes | Translated `code`, target `language`, and `reviews_left` |
+| POST | `/flowchart` | Yes | `nodes`, `edges`, and `reviews_left` |
+| GET | `/usage` | Yes | `limit`, `used`, `left`, and `resets_at` for the current window |
+| GET | `/history` | Yes | Up to 50 reviews, newest first |
+| GET | `/history/:id` | Yes | Full saved review |
+| DELETE | `/history/:id` | Yes | `204 No Content` on successful deletion |
 
-Request:
+The three POST routes accept JSON with a nonempty `code` string up to 100,000
+UTF-8 bytes, an optional `language` (default `python`), and an optional
+`filename` (default `untitled`). Translation also requires a supported
+`target` language ID.
 
 ```json
 { "code": "print('ok')", "language": "python", "filename": "main.py" }
 ```
 
-`language` defaults to `python` and `filename` is optional.
+Each review finding includes a type, severity, 1-based line and column,
+explanation, and suggested fix.
 
-Response:
+Errors use the JSON shape `{"detail":"<code>"}`.
 
-```json
-{
-  "findings": [
-    { "type": "bug", "severity": "high", "line": 1, "column": 1, "explanation": "...", "suggested_fix": "..." }
-  ],
-  "improved_code": null,
-  "id": "5f0c…",
-  "reviews_left": 49
-}
-```
-
-Errors are returned as `{"detail": "<code>"}`:
-
-| Status | Detail                   | Cause                                    |
-| ------ | ------------------------ | ---------------------------------------- |
-| 401    | `sign_in_required`       | Missing or invalid Clerk session token   |
-| 404    | `not_found`              | No such review in your history           |
-| 413    | `code_too_large`         | Code is over 100 KB                      |
-| 422    | `invalid_request`        | Missing or empty `code`, or bad types    |
-| 422    | `unsupported_language`   | `language` is not in the list above      |
-| 429    | `daily_limit_reached`    | Today's reviews are used up              |
-| 502    | `malformed_model_output` | Model reply did not match the schema     |
-| 503    | `model_unavailable`      | Model endpoint unreachable or errored    |
-| 503    | `database_unavailable`   | Supabase unreachable or errored          |
-| 504    | `model_timeout`          | Model did not answer in time             |
+| Status | Detail | Cause |
+| --- | --- | --- |
+| 401 | `sign_in_required` | Missing or invalid Clerk session token |
+| 404 | `not_found` | Review ID is invalid or absent from the user's history |
+| 413 | `code_too_large` | Source exceeds 100,000 UTF-8 bytes |
+| 422 | `invalid_request` | Request body or field types are invalid |
+| 422 | `unsupported_language` | Source or target language ID is unsupported |
+| 429 | `daily_limit_reached` | The current three-hour quota is exhausted |
+| 500 | `internal_error` | Unexpected server error |
+| 502 | `malformed_model_output` | Model output failed validation |
+| 503 | `model_unavailable` | Model endpoint was unreachable or returned an error |
+| 503 | `database_unavailable` | Supabase request failed |
+| 504 | `model_timeout` | Model request timed out |
 
 ## Configuration
 
-Plain settings live in `worker/wrangler.toml` under `[vars]`:
+Worker settings are in [`worker/wrangler.toml`](worker/wrangler.toml) under
+`[vars]`.
 
-| Variable             | Purpose                                              |
-| -------------------- | ---------------------------------------------------- |
-| `MODEL_URL`          | Qwen endpoint (OpenAI-compatible chat completions)   |
-| `MODEL_NAME`         | Model name sent to it                                |
-| `MODEL_TIMEOUT_MS`   | Per-call timeout, default `120000`                   |
-| `SUPABASE_URL`       | Supabase project URL                                 |
-| `DAILY_REVIEW_LIMIT` | Reviews per user per UTC day, default `50`           |
-| `FALLBACK_MODEL_URL` | Backup model URL (Docker + tunnel); empty = no backup |
-| `FALLBACK_MODEL_NAME`| Backup model name, `qwen3.5-9b`                      |
+| Variable | Purpose |
+| --- | --- |
+| `MODEL_URL` | Primary chat completions URL |
+| `MODEL_NAME` | Primary model name |
+| `MODEL_TIMEOUT_MS` | Timeout per model call in milliseconds (default 120,000) |
+| `SUPABASE_URL` | Supabase project URL |
+| `REVIEW_LIMIT` | Model requests allowed per user in a three-hour block (default 50) |
+| `FALLBACK_MODEL_URL` | Optional backup chat completions URL |
+| `FALLBACK_MODEL_NAME` | Backup model name |
 
-Secrets, never in Git: `CLERK_SECRET_KEY`, `SUPABASE_SECRET_KEY` and
-`FALLBACK_MODEL_KEY` (`bunx wrangler secret put`, or `worker/.dev.vars`
-locally). The frontend reads `VITE_CLERK_PUBLISHABLE_KEY` from `frontend/.env`.
-The Docker backup model reads `MODEL_FILE` and `MODEL_API_KEY` from `.env`
-(see `.env.example` and [RUN.md](RUN.md#backup-model-docker)).
+Keep `CLERK_SECRET_KEY`, `SUPABASE_SECRET_KEY`, and the optional
+`FALLBACK_MODEL_KEY` in `worker/.dev.vars` for local development. For a
+deployed Worker, set them with `bunx wrangler secret put`. The frontend
+publishable key is included in the client build.
 
 ## Tests
 
+With frontend and Worker dependencies installed, run these commands from the
+repository root.
+
 ```powershell
-bun test frontend           # browser syntax check, all 12 grammars
-cd worker; bun test         # Worker API; Clerk, Supabase and the model are mocked
+bun test frontend
+cd worker
+bun test
 ```
 
-CI (`.github/workflows/ci.yml`) runs both plus `npm run build` on pull
-requests to `main` and on pushes to `main` and `feat/**`.
+The frontend suite covers syntax checks and review helpers. The Worker suite
+mocks Clerk, Supabase, and the model. [GitHub Actions](.github/workflows/ci.yml)
+builds the frontend and runs both suites. Successful pushes to `main` trigger
+the Cloudflare deployment job.
 
 ## Project layout
 
-| Path                         | Purpose                                         |
-| ---------------------------- | ----------------------------------------------- |
-| `worker/src/index.ts`        | Worker API: auth, limits, model call, history   |
-| `worker/wrangler.toml`       | Worker settings, including `MODEL_URL`          |
-| `supabase/migrations/`       | Database schema                                 |
-| `frontend/src/main.jsx`      | Review workspace and hash routes                |
-| `frontend/src/Auth.jsx`      | Clerk sign-in / sign-up pages                   |
-| `frontend/src/Landing.jsx`   | Home page                                       |
-| `frontend/src/syntax.js`     | Browser syntax check and language guess         |
-| `frontend/public/grammars/`  | tree-sitter grammars (WebAssembly)              |
-| `frontend/dist/`             | Built site, served by the Worker (committed)    |
-| `vite.config.mjs`            | Vite config (root, dev forwarding, build output)|
-| `.github/workflows/ci.yml`   | CI                                              |
-| `compose.yaml`, `.env.example` | Docker backup model and its tunnel            |
-| `RUN.md`                     | Keys, local runs, deploying, backup model       |
+| Path | Purpose |
+| --- | --- |
+| [`frontend/src/`](frontend/src/) | React workspace, syntax checks, and benchmark views |
+| [`frontend/public/grammars/`](frontend/public/grammars/) | tree-sitter WebAssembly grammars |
+| `frontend/dist/` | Built site served by the Worker |
+| [`worker/src/index.ts`](worker/src/index.ts) | API, authentication, model calls, and usage accounting |
+| [`supabase/migrations/`](supabase/migrations/) | Database schema and usage functions |
+| [`eval/`](eval/) | Model evaluation scripts and datasets |
+| [`compose.yaml`](compose.yaml) | Optional Docker backup model and tunnel |
+| [`RUN.md`](RUN.md) | Setup, deployment, backup model, and evaluation details |
+
+## License
+
+[Apache 2.0](LICENSE)
