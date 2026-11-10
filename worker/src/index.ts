@@ -11,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Plain settings live in wrangler.toml [vars]; CLERK_SECRET_KEY, SUPABASE_SECRET_KEY and FALLBACK_MODEL_KEY are secrets
 // (`wrangler secret put`, or .dev.vars locally). The fallback is the Docker backup model (compose.yaml).
 export type Env = {
-  MODEL_URL: string; MODEL_NAME: string; MODEL_TIMEOUT_MS?: string; FALLBACK_MODEL_URL?: string; FALLBACK_MODEL_NAME?: string; FALLBACK_MODEL_KEY?: string;
+  MODEL_URL: string; MODEL_NAME: string; MODEL_TIMEOUT_MS?: string; FALLBACK_MODEL_TIMEOUT_MS?: string; FALLBACK_MODEL_URL?: string; FALLBACK_MODEL_NAME?: string; FALLBACK_MODEL_KEY?: string;
   SUPABASE_URL: string; SUPABASE_SECRET_KEY: string; CLERK_SECRET_KEY: string; REVIEW_LIMIT?: string;
 };
 type Finding = { type: string; severity: string; line: number; column: number; explanation: string; suggested_fix: string };
@@ -69,10 +69,32 @@ function parseFlowchart(content: unknown) {
 
 const messages = (task: string) => [{ role: "system", content: "You are a precise code assistant. Reply with JSON only." }, { role: "user", content: task }];
 const source = (code: string, language: string) => `\n\nSOURCE:\n\`\`\`${language}\n${code}\n\`\`\``;
-const translatePrompt = (code: string, from: string, to: string) => messages(`Translate this ${LANGUAGES[from]} code to idiomatic ${LANGUAGES[to]}. Keep the behaviour, names and comments. Return only JSON: {"code":"the full translated source"}` + source(code, from));
+const translatePrompt = (code: string, from: string, to: string, retry = false) => messages(`Rewrite this ${LANGUAGES[from]} code as ${LANGUAGES[to]} code. The result must be valid ${LANGUAGES[to]}, written in ${LANGUAGES[to]} syntax, and must not be ${LANGUAGES[from]}. Keep the behaviour, names and comments. Return only JSON: {"language":"${LANGUAGES[to]}","code":"the full ${LANGUAGES[to]} source"}`
+  + (retry ? ` Your previous answer was still ${LANGUAGES[from]}. This time write real ${LANGUAGES[to]}.` : "") + source(code, from));
+// Small models sometimes hand the source back untouched; compare ignoring whitespace.
+const unchanged = (a: string, b: string) => a.replace(/\s+/g, "") === b.replace(/\s+/g, "");
 const flowchartPrompt = (code: string, language: string) => messages(`Draw a flowchart of the main logic of this ${LANGUAGES[language]} code. Return only JSON:
 {"nodes":[{"id":"a","label":"short text","kind":"start|process|decision|end","line":1}],"edges":[{"from":"a","to":"b","label":"yes/no or empty"}]}
 Use at most 25 nodes. "line" is the 1-based source line the node comes from. Decision nodes have labelled outgoing edges.` + source(code, language));
+
+// Joins the pieces of a streamed answer ("data: {...}" lines) back into one string.
+async function readStream(response: Response) {
+  const reader = response.body!.getReader(), decoder = new TextDecoder();
+  let buf = "", text = "";
+  const take = (line: string) => {
+    const data = line.replace(/\r$/, "").match(/^data: (.+)$/)?.[1];
+    if (data && data !== "[DONE]") text += JSON.parse(data).choices?.[0]?.delta?.content ?? "";
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const lines = (buf += decoder.decode(value, { stream: true })).split("\n");
+    buf = lines.pop()!;
+    lines.forEach(take);
+  }
+  take(buf);
+  return text;
+}
 
 async function callModel<T>(url: string, model: string, timeoutMs: number, msgs: object[], parse: (content: unknown) => T, key?: string): Promise<T> {
   let response: Response;
@@ -86,27 +108,39 @@ async function callModel<T>(url: string, model: string, timeoutMs: number, msgs:
         temperature: 0,
         reasoning_effort: "none",
         response_format: { type: "json_object" },
+        stream: true,   // a steady trickle of text keeps a slow model's tunnel from timing out
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (e) {
     throw new ApiError((e as Error)?.name === "TimeoutError" ? 504 : 503, (e as Error)?.name === "TimeoutError" ? "model_timeout" : "model_unavailable");
   }
-  if (!response.ok) throw new ApiError(503, "model_unavailable");
+  if (!response.ok) { console.error("model", url, "answered", response.status); throw new ApiError(503, "model_unavailable"); }
+  const plain = response.headers.get("content-type")?.includes("json");   // a server that ignored stream:true
+  let text: any;
   try {
-    return parse(((await response.json()) as any).choices[0].message.content);
+    text = plain ? await response.json().catch(() => null) : await readStream(response);
+  } catch (e) {
+    const timedOut = (e as Error)?.name === "TimeoutError";
+    throw new ApiError(timedOut ? 504 : 503, timedOut ? "model_timeout" : "model_unavailable");
+  }
+  try {
+    return parse(plain ? text.choices[0].message.content : text);
   } catch {
     throw new ApiError(502, "malformed_model_output");
   }
 }
 
-// Primary model first, then the backup if one is configured.
-function ask<T>(env: Env, msgs: object[], parse: (content: unknown) => T): Promise<T> {
-  const timeout = Number(env.MODEL_TIMEOUT_MS || 120_000);
-  return callModel(env.MODEL_URL, env.MODEL_NAME, timeout, msgs, parse).catch(e => {
+// Primary model first, then the backup if one is configured. `backup` says which model answered instead, and why.
+type Backup = { model: string; reason: string } | null;
+function ask<T>(env: Env, msgs: object[], parse: (content: unknown) => T): Promise<{ out: T; backup: Backup }> {
+  const timeout = Number(env.MODEL_TIMEOUT_MS || 120_000), slowTimeout = Number(env.FALLBACK_MODEL_TIMEOUT_MS || 600_000);
+  return callModel(env.MODEL_URL, env.MODEL_NAME, timeout, msgs, parse).then(out => ({ out, backup: null as Backup })).catch(e => {
     if (!(e instanceof ApiError) || !env.FALLBACK_MODEL_URL) throw e;
     console.warn(`primary model ${env.MODEL_NAME} failed (${e.detail}); FALLING BACK to ${env.FALLBACK_MODEL_NAME}`);
-    return callModel(env.FALLBACK_MODEL_URL, env.FALLBACK_MODEL_NAME ?? env.MODEL_NAME, timeout, msgs, parse, env.FALLBACK_MODEL_KEY);
+    const model = env.FALLBACK_MODEL_NAME ?? env.MODEL_NAME;
+    return callModel(env.FALLBACK_MODEL_URL, model, slowTimeout, msgs, parse, env.FALLBACK_MODEL_KEY).then(out => ({ out, backup: { model, reason: e.detail } }))
+      .catch(e2 => { throw e2 instanceof ApiError && e2.detail !== "malformed_model_output" ? new ApiError(e2.status, "all_models_unavailable") : e2; });
   });
 }
 
@@ -160,7 +194,7 @@ async function metered<T>(c: Ctx, msgs: object[], parse: (content: unknown) => T
   const left = await rpc(env, "take_review", { p_user: user, p_limit: Number(env.REVIEW_LIMIT || 50) }) as number;
   if (left < 0) throw new ApiError(429, "daily_limit_reached");
   try {
-    return { out: await ask(env, msgs, parse), left };
+    return { ...await ask(env, msgs, parse), left };
   } catch (e) {
     await rpc(env, "return_review", { p_user: user }).catch(() => {});
     throw e;
@@ -169,7 +203,7 @@ async function metered<T>(c: Ctx, msgs: object[], parse: (content: unknown) => T
 
 app.post("/review", signedIn, async c => {
   const { code, language, filename } = await codeRequest(c);
-  const { out: review, left } = await metered(c, [{ role: "system", content: "You are a precise code reviewer." }, { role: "user", content: prompt(code, language, filename) }], parseReview);
+  const { out: review, left, backup } = await metered(c, [{ role: "system", content: "You are a precise code reviewer." }, { role: "user", content: prompt(code, language, filename) }], parseReview);
   const env = c.env, user = c.get("user");
 
   // A review that can't be saved is still returned; it just won't show up in history.
@@ -177,15 +211,22 @@ app.post("/review", signedIn, async c => {
     method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ user_id: user, filename, language, code, ...review }),
   }).catch(() => null) as { id: string }[] | null;
-  return c.json({ ...review, id: saved?.[0]?.id ?? null, reviews_left: left });
+  return c.json({ ...review, id: saved?.[0]?.id ?? null, reviews_left: left, backup });
 });
 
 app.post("/translate", signedIn, async c => {
   const { body, code, language } = await codeRequest(c);
   const target = typeof body.target === "string" ? body.target.toLowerCase() : "";
   if (!Object.hasOwn(LANGUAGES, target)) throw new ApiError(422, "unsupported_language");
-  const { out, left } = await metered(c, translatePrompt(code, language, target), parseTranslation);
-  return c.json({ code: out, language: target, reviews_left: left });
+  let attempt = await metered(c, translatePrompt(code, language, target), parseTranslation);
+  if (language !== target && unchanged(attempt.out, code)) {
+    // Give that use back and ask once more, firmly; if it's still untouched, say so instead of showing the same code.
+    const giveBack = () => rpc(c.env, "return_review", { p_user: c.get("user") }).catch(() => {});
+    await giveBack();
+    attempt = await metered(c, translatePrompt(code, language, target, true), parseTranslation);
+    if (unchanged(attempt.out, code)) { await giveBack(); throw new ApiError(502, "translation_unchanged"); }
+  }
+  return c.json({ code: attempt.out, language: target, reviews_left: attempt.left });
 });
 
 app.post("/flowchart", signedIn, async c => {

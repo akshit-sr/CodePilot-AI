@@ -1,9 +1,23 @@
+import { useEffect, useState } from "react";
 import { MOD_KEY } from "../review.js";
+
+// Shown while a review runs; after a while it explains why it may be slow (the backup model is much slower).
+function Reading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 20_000);
+    return () => clearTimeout(t);
+  }, []);
+  return <>
+    <p className="reading">Reading your code<span className="pen" /></p>
+    {slow && <p className="hint">Still working. If the main model is down, the backup is slower and can take a few minutes.</p>}
+  </>;
+}
 
 // The message at the top of the margin: progress, an error, a hint, or a remark about the review.
 // Only the first one that applies is shown, apart from the filter hint, which can follow another message.
 export function MarginStatus({ loading, error, guess, languages, review, stale, filter, shownCount, filename, canRetry, onSwitch, onRetry, onShowAll }) {
-  if (loading) return <p className="reading">Reading your code<span className="pen" /></p>;
+  if (loading) return <Reading />;
 
   if (error) return <div className="slip error">
     <b>The review didn’t finish.</b>

@@ -85,7 +85,7 @@ test("review contract: model call, saved to history, counted against the limit",
   const res = await review({ code: "print('ok')", filename: "main.py" });
   expect(res.status).toBe(200);
   const data = await res.json();
-  expect(data).toEqual({ findings: [], improved_code: null, id: rows.reviews[0].id, reviews_left: 2 });
+  expect(data).toEqual({ findings: [], improved_code: null, id: rows.reviews[0].id, reviews_left: 2, backup: null });
   expect(calls[0].url).toBe(MODEL);
   expect(calls[0].body.model).toBe("qwen-primary");
   expect(calls[0].body.reasoning_effort).toBe("none");
@@ -171,6 +171,19 @@ test("falls back to the local model when one is configured", async () => {
   expect(res.status).toBe(200);
   expect(calls.at(-1)!.body.model).toBe("qwen3.5-9b");
   expect(calls.map(c => c.auth)).toEqual([null, "Bearer backup-key"]);
+  expect((await res.json()).backup).toEqual({ model: "qwen3.5-9b", reason: "model_unavailable" });
+});
+
+test("a review from the primary model says there was no backup", async () => {
+  model(() => answer('{"findings": []}'));
+  expect((await (await review({ code: "x = 1" })).json()).backup).toBeNull();
+});
+
+test("when the primary and the backup both fail, the error says all models are unavailable", async () => {
+  model(() => Promise.reject(new TypeError("down")));
+  const res = await review({ code: "x = 1" }, { ...env, FALLBACK_MODEL_URL: "https://backup.test/v1/chat/completions", FALLBACK_MODEL_NAME: "qwen3.5-9b" });
+  expect([res.status, (await res.json()).detail]).toEqual([503, "all_models_unavailable"]);
+  expect(rows.usage.user_1).toBe(0);
 });
 
 test("without a fallback the primary's error is returned", async () => {
@@ -196,6 +209,38 @@ test.each(Object.keys(LANGUAGES))("prompt names %s", async language => {
   expect(calls[0].body.messages[1].content).toContain(`Review this ${LANGUAGES[language]} source file`);
 });
 
+test("the backup model gets its own, longer timeout", async () => {
+  const timeouts: number[] = [], real = AbortSignal.timeout;
+  AbortSignal.timeout = (ms: number) => { timeouts.push(ms); return new AbortController().signal; };
+  try {
+    model(url => url === MODEL ? Promise.reject(new TypeError("down")) : answer('{"findings": []}'));
+    await review({ code: "x = 1" }, { ...env, MODEL_TIMEOUT_MS: "1000", FALLBACK_MODEL_TIMEOUT_MS: "5000", FALLBACK_MODEL_URL: "https://backup.test/v1/chat/completions" });
+  } finally {
+    AbortSignal.timeout = real;
+  }
+  expect(timeouts).toEqual([1000, 5000]);
+});
+
+// A streamed answer: the text arrives in small pieces, as server-sent events.
+const streamed = (...pieces: string[]) => new Response(
+  pieces.map(p => `data: ${JSON.stringify({ choices: [{ delta: { content: p } }] })}\n\n`).join("") + "data: [DONE]\n\n",
+  { headers: { "Content-Type": "text/event-stream" } },
+);
+
+test("a streamed answer is put back together, and the request asks for a stream", async () => {
+  const calls = model(() => streamed('{"findings": [{"type":"bug","severity":"low","line":2,', '"column":1,"explanation":"e","suggested_fix":"f"}]}'));
+  const data = await (await review({ code: "x = 1" })).json();
+  expect(calls[0].body.stream).toBe(true);
+  expect(data.findings.map((f: any) => f.line)).toEqual([2]);
+});
+
+test("a stream that stops partway is a timeout, not a broken review", async () => {
+  model(() => new Response(new ReadableStream({ pull(c) { c.error(new DOMException("slow", "TimeoutError")); } }), { headers: { "Content-Type": "text/event-stream" } }));
+  const res = await review({ code: "x = 1" });
+  expect([res.status, (await res.json()).detail]).toEqual([504, "model_timeout"]);
+  expect(rows.usage.user_1).toBe(0);
+});
+
 test("model timeout", async () => {
   model(() => Promise.reject(new DOMException("slow", "TimeoutError")));
   const res = await review({ code: "x = 1" });
@@ -219,7 +264,7 @@ test("translate returns the model's code and counts one use", async () => {
   const calls = model(() => answer('{"code": "let x = 1;"}'));
   const res = await post("/translate", { code: "x = 1", language: "python", target: "javascript" });
   expect(await res.json()).toEqual({ code: "let x = 1;", language: "javascript", reviews_left: 2 });
-  expect(calls[0].body.messages[1].content).toContain("to idiomatic JavaScript");
+  expect(calls[0].body.messages[1].content).toContain("as JavaScript code");
 });
 
 test("translate refuses an unknown target without using the model or a review", async () => {
@@ -232,6 +277,24 @@ test("translate refuses an unknown target without using the model or a review", 
 test("a translation with no code gives the use back", async () => {
   model(() => answer('{"code": ""}'));
   expect((await post("/translate", { code: "x = 1", target: "go" })).status).toBe(502);
+  expect(rows.usage.user_1).toBe(0);
+});
+
+test("a translation handed back unchanged is retried once, and the use is only counted once", async () => {
+  let n = 0;
+  const calls = model(() => answer(JSON.stringify({ code: ++n === 1 ? "x = 1" : "let x = 1;" })));
+  const data = await (await post("/translate", { code: "x = 1", language: "python", target: "javascript" })).json();
+  expect(data).toEqual({ code: "let x = 1;", language: "javascript", reviews_left: 2 });
+  expect(calls.length).toBe(2);
+  expect(calls[1].body.messages[1].content).toContain("still Python");
+  expect(rows.usage.user_1).toBe(1);
+});
+
+test("a translation that stays unchanged after the retry is refused and costs nothing", async () => {
+  const calls = model(() => answer('{"code": "x  =  1"}'));
+  const res = await post("/translate", { code: "x = 1", language: "python", target: "javascript" });
+  expect([res.status, (await res.json()).detail]).toEqual([502, "translation_unchanged"]);
+  expect(calls.length).toBe(2);
   expect(rows.usage.user_1).toBe(0);
 });
 
