@@ -1,5 +1,5 @@
 // The review itself and everything it needs from the server: running a review, reopening or deleting
-// a past one, plus what the page shows about the server (online, languages, today's quota, history).
+// a past one, plus what the page shows about the server (languages, today's quota, history).
 import { useEffect, useState } from "react";
 import parserRuntime from "web-tree-sitter/web-tree-sitter.wasm?url";
 import { useApi } from "../api.js";
@@ -21,7 +21,6 @@ export function useReview(draft, onStart) {
   const { code, filename, language } = draft;
 
   const [languages, setLanguages] = useState(FALLBACK_LANGUAGES);
-  const [online, setOnline] = useState(null);   // null while checking
   const [usage, setUsage] = useState(null);     // { limit, left }
   const [history, setHistory] = useState([]);   // [{ id, filename, language, created_at }]
 
@@ -33,14 +32,10 @@ export function useReview(draft, onStart) {
 
   useEffect(() => {
     api.languages().then(setLanguages).catch(() => {});
-    checkHealth();
     api.usage().then(u => u && setUsage(u)).catch(() => {});
     loadHistory();
   }, []);
 
-  function checkHealth() {
-    api.health().then(setOnline);
-  }
 
   function loadHistory() {
     api.history().then(h => Array.isArray(h) && setHistory(h)).catch(() => {});
@@ -87,7 +82,6 @@ export function useReview(draft, onStart) {
       setError(e instanceof TypeError ? "Couldn’t reach the review API. Start the backend and try again." : e.message);
     } finally {
       setLoading(false);
-      checkHealth();
     }
   }
 
@@ -129,5 +123,5 @@ export function useReview(draft, onStart) {
     }
   }
 
-  return { languages, online, usage, history, review, loading, error, setError, guess, prepared, load, restore, run, derive, openPast, deletePast };
+  return { languages, usage, history, review, loading, error, setError, guess, prepared, load, restore, run, derive, openPast, deletePast };
 }

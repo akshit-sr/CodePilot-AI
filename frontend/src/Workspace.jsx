@@ -37,7 +37,7 @@ export default function Workspace() {
   const draft = useDraft();
   const { code, filename, language } = draft;
   const server = useReview(draft, () => { setFilter(null); setActive(null); setView("code"); });
-  const { languages, online, usage, history, review, loading } = server;
+  const { languages, usage, history, review, loading } = server;
   const reviewed = !!review;   // Flowchart and Translate appear once the file has been marked up
   // Open files: the current sheet lives in `draft` and `server`; the others wait here with their code and review.
   const [tabs, setTabs] = useState([{ id: 0 }]);
@@ -113,11 +113,8 @@ export default function Workspace() {
     }
   }
 
-  const onlineLabel = online === true ? "API online" : online === false ? "API offline" : "Checking API";
-
   return <>
     <Masthead>
-      <span className={"status " + (online === true ? "up" : online === false ? "down" : "")}><i />{onlineLabel}</span>
       {usage && <span className="quota">{usage.left} of {usage.limit} reviews left · resets {new Date(usage.resets_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}
       <a className="navlink" href="#eval">Evaluate model</a>
       <a className="navlink" href="#" onClick={e => { e.preventDefault(); signOut({ redirectUrl: "/#" }); }}>Sign out</a>

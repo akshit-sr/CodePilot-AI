@@ -11,7 +11,6 @@ export function useApi() {
 
   return {
     // Public.
-    health: () => fetch("/health").then(r => r.ok, () => false),
     languages: () => fetch("/languages").then(r => r.json()),
 
     // Signed in. These resolve to the parsed JSON, or false if the server said no.

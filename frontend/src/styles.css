@@ -74,10 +74,6 @@ kbd { font: 12px var(--mono); padding: 1px 5px; border: 1px solid var(--rule); b
 .masthead nav { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 13px; color: var(--ink-2); }
 .masthead nav a { text-decoration: none; border-bottom: 1px solid var(--rule); }
 .masthead nav a:hover { color: var(--ink); border-color: var(--ink-3); }
-.status { display: inline-flex; align-items: center; gap: 7px; }
-.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
-.status.up i { background: #3d8b4a; box-shadow: 0 0 0 3px color-mix(in srgb, #3d8b4a 20%, transparent); }
-.status.down i { background: var(--pen); }
 .quota { font: italic 14px var(--serif); color: var(--ink-3); }
 
 /* Earlier sheets: the signed-in user's past reviews */
