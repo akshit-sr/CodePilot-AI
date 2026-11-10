@@ -252,7 +252,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 24px 56px; }
 .keys { font: 11px var(--mono); opacity: .65; }
 
 /* Revised draft */
-.page.alt .editor { display: none; }
+.page.alt > .editor { display: none; }
 .page.alt .margin { min-height: 0; }
 .page.alt .note { position: static; margin-bottom: 12px; }
 .draft-view { min-width: 0; padding: 8px 0 32px; }
