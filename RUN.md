@@ -6,7 +6,7 @@ Qwen endpoint in `worker/wrangler.toml`.
 
 ## One-time setup
 
-1. Install: `npm.cmd install` in the repo root, `bun install` in `worker/`.
+1. Install: `npm install` in the repo root, `bun install` in `worker/`.
 2. Supabase: run `supabase/migrations/0001_init.sql` once in the project's SQL
    editor (already done for `kznbombadogwizvsruep`).
 3. Keys, all kept out of Git:
@@ -21,13 +21,13 @@ Qwen endpoint in `worker/wrangler.toml`.
 ## Run locally
 
 ```powershell
-npm.cmd run build          # build the site into frontend/dist
+npm run build          # build the site into frontend/dist
 cd worker; bun run dev     # site + API on http://127.0.0.1:8787
 ```
 
-For frontend work, also run `npm.cmd run dev` (http://127.0.0.1:5173, hot
+For frontend work, also run `npm run dev` (http://127.0.0.1:5173, hot
 reload; API calls go to the Worker on 8787). Restart `bun run dev` after a
-`npm.cmd run build`, or it serves 404 for the page.
+`npm run build`, or it serves 404 for the page.
 
 ## Deploy
 
@@ -107,14 +107,14 @@ cd eval
 uv run pytest                                  # scoring tests
 $env:FALLBACK_MODEL_KEY = "<MODEL_API_KEY>"    # optional: include the Docker backup model
 uv run python run_eval.py                      # needs the model tunnels up
-cd ..; npm.cmd run build                       # then deploy: cd worker; bun run deploy
+cd ..; npm run build                       # then deploy: cd worker; bun run deploy
 ```
 
 The page also has two benchmark tabs:
 
 - "QuixBugs benchmark": 14 programs from QuixBugs (Lin et al., SPLASH 2017,
   MIT), each with one known bug located by diffing against the official fix.
-- "NIST Juliet (Java)": 10 test cases from NIST's Juliet Test Suite for Java
+- "NIST Juliet": 10 test cases from NIST's Juliet Test Suite for Java
   1.3 (samate.nist.gov/SARD), one per CWE, with comments and hints stripped.
 
 `eval/datasets/*.json` are committed; refetch only to change the case lists.

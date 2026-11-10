@@ -99,7 +99,7 @@
   ],
   "models": [
     {
-      "name": "qwen3.8-27b-uncensored-mtp:latest",
+      "name": "qwen3.8-27b",
       "recall": 0.9230769230769231,
       "precision": 0.85,
       "avg_seconds": 29.3,
