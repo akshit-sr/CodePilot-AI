@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import parserRuntime from "web-tree-sitter/web-tree-sitter.wasm?url";
 import { useApi } from "../api.js";
 import { syntaxChecker } from "../syntax.js";
-import { ERRORS, FALLBACK_LANGUAGES, LIMIT, toNotes } from "../review.js";
+import { ERRORS, FALLBACK_LANGUAGES, LIMIT, prepare, toNotes } from "../review.js";
 
 const syntax = syntaxChecker(lang => `/grammars/${lang}.wasm`, parserRuntime);
 
@@ -29,6 +29,7 @@ export function useReview(draft, onStart) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [guess, setGuess] = useState(null);     // language suggested after a syntax error
+  const [prepared, setPrepared] = useState(null);   // flowchart + translation started after a review (see prepare)
 
   useEffect(() => {
     api.languages().then(setLanguages).catch(() => {});
@@ -48,12 +49,18 @@ export function useReview(draft, onStart) {
   // Put new code on the sheet, dropping the old review.
   function load(text, name, lang) {
     draft.setCode(text); draft.setFilename(name); draft.setLanguage(lang);
-    setReview(null); setError("");
+    setReview(null); setError(""); setPrepared(null);
+  }
+
+  // Bring back a sheet that was set aside in a tab.
+  function restore(t) {
+    draft.setCode(t.code); draft.setFilename(t.filename); draft.setLanguage(t.language);
+    setReview(t.review ?? null); setPrepared(t.prepared ?? null); setError(""); setGuess(null);
   }
 
   async function run(lang = language) {
     if (!code.trim() || new Blob([code]).size > LIMIT || loading) return;
-    setLoading(true); setError(""); setGuess(null); onStart();
+    setLoading(true); setError(""); setGuess(null); setPrepared(null); onStart();
     try {
       // Catch syntax errors here, before using up a review. If a grammar fails to load, the check is skipped.
       if (await syntax.hasError(code, lang).catch(() => false)) {
@@ -72,6 +79,9 @@ export function useReview(draft, onStart) {
       setReview({ notes: toNotes(findings), ...await checkRewrite(code, data.improved_code, lang), code });
       if (typeof data.reviews_left === "number") setUsage(u => u && { ...u, left: data.reviews_left });
       loadHistory();
+      const p = prepare(derive, api, code, lang);
+      setPrepared(p);
+      p.translate.catch(() => {}).then(() => setPrepared(cur => cur === p ? { ...cur, done: true } : cur));
     } catch (e) {
       setReview(null);
       setError(e instanceof TypeError ? "Couldn’t reach the review API. Start the backend and try again." : e.message);
@@ -81,12 +91,26 @@ export function useReview(draft, onStart) {
     }
   }
 
-  async function openPast(id) {
+  // Flowchart and translation: same errors and same quota as a review. Resolves to the parsed answer, or throws a message.
+  async function derive(call) {
+    try {
+      const r = await call();
+      const data = await r.json().catch(() => ({}));
+      if (data.detail === "daily_limit_reached") setUsage(u => u && { ...u, left: 0 });
+      if (!r.ok) throw Error(ERRORS[data.detail] || (r.status >= 500 ? "The API is unavailable. Try again." : `Request failed (HTTP ${r.status}).`));
+      if (typeof data.reviews_left === "number") setUsage(u => u && { ...u, left: data.reviews_left });
+      return data;
+    } catch (e) {
+      throw e instanceof TypeError ? Error("Couldn’t reach the API. Start the backend and try again.") : e;
+    }
+  }
+
+  async function openPast(id, place = load) {
     try {
       const r = await api.openReview(id);
       if (!r.ok) throw Error();
       const past = await r.json();
-      load(past.code, past.filename, past.language);
+      place(past.code, past.filename, past.language);
       setReview({ notes: toNotes(past.findings), ...await checkRewrite(past.code, past.improved_code, past.language), code: past.code });
       scrollTo({ top: 0, behavior: "smooth" });
     } catch {
@@ -105,5 +129,5 @@ export function useReview(draft, onStart) {
     }
   }
 
-  return { languages, online, usage, history, review, loading, error, setError, guess, load, run, openPast, deletePast };
+  return { languages, online, usage, history, review, loading, error, setError, guess, prepared, load, restore, run, derive, openPast, deletePast };
 }

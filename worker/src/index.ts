@@ -1,4 +1,4 @@
-import { Hono, type MiddlewareHandler } from "hono";
+import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { verifyToken } from "@clerk/backend";
 
 export const LANGUAGES: Record<string, string> = {
@@ -33,10 +33,10 @@ ${code.split("\n").map((line, i) => `${i + 1}| ${line}`).join("\n")}
 \`\`\``;
 
 // The model's JSON must have exactly findings (+ optional improved_code), each finding fully filled in.
+const int = (v: unknown) => typeof v === "number" ? v : typeof v === "string" && /^\s*\d+\s*$/.test(v) ? +v : NaN;
+const str = (v: unknown) => { if (typeof v !== "string") throw TypeError(); return v; };
 function parseReview(content: unknown): Review {
   const out = JSON.parse(content as string);
-  const int = (v: unknown) => typeof v === "number" ? v : typeof v === "string" && /^\s*\d+\s*$/.test(v) ? +v : NaN;
-  const str = (v: unknown) => { if (typeof v !== "string") throw TypeError(); return v; };
   if (!out || typeof out !== "object" || !Array.isArray(out.findings) || Object.keys(out).some(k => k !== "findings" && k !== "improved_code")) throw TypeError();
   if (out.improved_code != null) str(out.improved_code);
   const findings = out.findings.map((f: any) => {
@@ -47,7 +47,34 @@ function parseReview(content: unknown): Review {
   return { findings, improved_code: out.improved_code ?? null };
 }
 
-async function callModel(url: string, model: string, timeoutMs: number, code: string, language: string, filename: string, key?: string): Promise<Review> {
+const parseTranslation = (content: unknown) => {
+  const code = JSON.parse(content as string)?.code;
+  if (typeof code !== "string" || !code.trim()) throw TypeError();
+  return code;
+};
+
+// A flowchart as plain data; the browser turns it into a diagram, so the model never writes diagram syntax.
+const KINDS = ["start", "process", "decision", "end"];
+function parseFlowchart(content: unknown) {
+  const out = JSON.parse(content as string);
+  if (!Array.isArray(out?.nodes) || !Array.isArray(out.edges) || !out.nodes.length || out.nodes.length > 40 || out.edges.length > 80) throw TypeError();
+  const nodes = out.nodes.map((n: any) => ({ id: str(n.id), label: str(n.label).slice(0, 80), kind: KINDS.includes(n.kind) ? n.kind : "process", line: int(n.line) >= 1 ? int(n.line) : null }));
+  const ids = new Set(nodes.map((n: { id: string }) => n.id));
+  const edges = out.edges.map((e: any) => {
+    if (!ids.has(e?.from) || !ids.has(e.to)) throw TypeError();
+    return { from: e.from, to: e.to, label: typeof e.label === "string" ? e.label.slice(0, 40) : "" };
+  });
+  return { nodes, edges };
+}
+
+const messages = (task: string) => [{ role: "system", content: "You are a precise code assistant. Reply with JSON only." }, { role: "user", content: task }];
+const source = (code: string, language: string) => `\n\nSOURCE:\n\`\`\`${language}\n${code}\n\`\`\``;
+const translatePrompt = (code: string, from: string, to: string) => messages(`Translate this ${LANGUAGES[from]} code to idiomatic ${LANGUAGES[to]}. Keep the behaviour, names and comments. Return only JSON: {"code":"the full translated source"}` + source(code, from));
+const flowchartPrompt = (code: string, language: string) => messages(`Draw a flowchart of the main logic of this ${LANGUAGES[language]} code. Return only JSON:
+{"nodes":[{"id":"a","label":"short text","kind":"start|process|decision|end","line":1}],"edges":[{"from":"a","to":"b","label":"yes/no or empty"}]}
+Use at most 25 nodes. "line" is the 1-based source line the node comes from. Decision nodes have labelled outgoing edges.` + source(code, language));
+
+async function callModel<T>(url: string, model: string, timeoutMs: number, msgs: object[], parse: (content: unknown) => T, key?: string): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -55,7 +82,7 @@ async function callModel(url: string, model: string, timeoutMs: number, code: st
       headers: { "Content-Type": "application/json", ...(key && { Authorization: `Bearer ${key}` }) },
       body: JSON.stringify({
         model,
-        messages: [{ role: "system", content: "You are a precise code reviewer." }, { role: "user", content: prompt(code, language, filename) }],
+        messages: msgs,
         temperature: 0,
         reasoning_effort: "none",
         response_format: { type: "json_object" },
@@ -67,10 +94,20 @@ async function callModel(url: string, model: string, timeoutMs: number, code: st
   }
   if (!response.ok) throw new ApiError(503, "model_unavailable");
   try {
-    return parseReview(((await response.json()) as any).choices[0].message.content);
+    return parse(((await response.json()) as any).choices[0].message.content);
   } catch {
     throw new ApiError(502, "malformed_model_output");
   }
+}
+
+// Primary model first, then the backup if one is configured.
+function ask<T>(env: Env, msgs: object[], parse: (content: unknown) => T): Promise<T> {
+  const timeout = Number(env.MODEL_TIMEOUT_MS || 120_000);
+  return callModel(env.MODEL_URL, env.MODEL_NAME, timeout, msgs, parse).catch(e => {
+    if (!(e instanceof ApiError) || !env.FALLBACK_MODEL_URL) throw e;
+    console.warn(`primary model ${env.MODEL_NAME} failed (${e.detail}); FALLING BACK to ${env.FALLBACK_MODEL_NAME}`);
+    return callModel(env.FALLBACK_MODEL_URL, env.FALLBACK_MODEL_NAME ?? env.MODEL_NAME, timeout, msgs, parse, env.FALLBACK_MODEL_KEY);
+  });
 }
 
 // Supabase's REST API, called with the secret key (the tables have RLS on and no public policies).
@@ -104,36 +141,57 @@ const signedIn: MiddlewareHandler<{ Bindings: Env; Variables: Vars }> = async (c
 app.get("/health", c => c.json({ status: "ok" }));
 app.get("/languages", c => c.json(LANGUAGES));
 
-app.post("/review", signedIn, async c => {
+type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
+
+// The JSON body every model route takes: code plus an optional language and filename.
+async function codeRequest(c: Ctx) {
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body.code !== "string" || !body.code || (body.language != null && typeof body.language !== "string") || (body.filename != null && typeof body.filename !== "string"))
     throw new ApiError(422, "invalid_request");
   const language = (body.language ?? "python").toLowerCase(), filename = body.filename || "untitled";
   if (!Object.hasOwn(LANGUAGES, language)) throw new ApiError(422, "unsupported_language");
   if (new TextEncoder().encode(body.code).length > MAX_CODE_SIZE) throw new ApiError(413, "code_too_large");
+  return { body, code: body.code as string, language, filename: filename as string };
+}
 
-  const env = c.env, user = c.get("user"), timeout = Number(env.MODEL_TIMEOUT_MS || 120_000);
+// Counts one use against the user's window, runs the model, and gives the use back if the model failed.
+async function metered<T>(c: Ctx, msgs: object[], parse: (content: unknown) => T) {
+  const env = c.env, user = c.get("user");
   const left = await rpc(env, "take_review", { p_user: user, p_limit: Number(env.REVIEW_LIMIT || 50) }) as number;
   if (left < 0) throw new ApiError(429, "daily_limit_reached");
-
-  let review: Review;
   try {
-    review = await callModel(env.MODEL_URL, env.MODEL_NAME, timeout, body.code, language, filename).catch(e => {
-      if (!(e instanceof ApiError) || !env.FALLBACK_MODEL_URL) throw e;
-      console.warn(`primary model ${env.MODEL_NAME} failed (${e.detail}); FALLING BACK to ${env.FALLBACK_MODEL_NAME}`);
-      return callModel(env.FALLBACK_MODEL_URL, env.FALLBACK_MODEL_NAME ?? env.MODEL_NAME, timeout, body.code, language, filename, env.FALLBACK_MODEL_KEY);
-    });
+    return { out: await ask(env, msgs, parse), left };
   } catch (e) {
     await rpc(env, "return_review", { p_user: user }).catch(() => {});
     throw e;
   }
+}
+
+app.post("/review", signedIn, async c => {
+  const { code, language, filename } = await codeRequest(c);
+  const { out: review, left } = await metered(c, [{ role: "system", content: "You are a precise code reviewer." }, { role: "user", content: prompt(code, language, filename) }], parseReview);
+  const env = c.env, user = c.get("user");
 
   // A review that can't be saved is still returned; it just won't show up in history.
   const saved = await db(env, "reviews?select=id", {
     method: "POST", headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ user_id: user, filename, language, code: body.code, ...review }),
+    body: JSON.stringify({ user_id: user, filename, language, code, ...review }),
   }).catch(() => null) as { id: string }[] | null;
   return c.json({ ...review, id: saved?.[0]?.id ?? null, reviews_left: left });
+});
+
+app.post("/translate", signedIn, async c => {
+  const { body, code, language } = await codeRequest(c);
+  const target = typeof body.target === "string" ? body.target.toLowerCase() : "";
+  if (!Object.hasOwn(LANGUAGES, target)) throw new ApiError(422, "unsupported_language");
+  const { out, left } = await metered(c, translatePrompt(code, language, target), parseTranslation);
+  return c.json({ code: out, language: target, reviews_left: left });
+});
+
+app.post("/flowchart", signedIn, async c => {
+  const { code, language } = await codeRequest(c);
+  const { out, left } = await metered(c, flowchartPrompt(code, language), parseFlowchart);
+  return c.json({ ...out, reviews_left: left });
 });
 
 app.get("/usage", signedIn, async c => {

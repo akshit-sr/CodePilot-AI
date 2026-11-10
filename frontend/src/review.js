@@ -94,10 +94,27 @@ export function diffLines(before, after) {
 }
 
 // "main" + python -> "main.py"; a name that already has an extension is kept.
+const extFor = lang => Object.keys(EXT).find(e => EXT[e] === lang) ?? "txt";
 export const downloadName = (filename, lang) => {
   const name = filename.trim() || "untitled";
-  return name.includes(".") ? name : `${name}.${Object.keys(EXT).find(e => EXT[e] === lang) ?? "txt"}`;
+  return name.includes(".") ? name : `${name}.${extFor(lang)}`;
 };
+
+// "cart.js" + python -> "cart.py"
+export const renameFor = (filename, lang) => `${filename.replace(/\.[^.]*$/, "") || "untitled"}.${extFor(lang)}`;
+
+// Flowchart data from the Worker -> Mermaid text. Nodes on a line the review flagged are painted red.
+export function toMermaid({ nodes, edges }, notes = []) {
+  const id = new Map(nodes.map((n, i) => [n.id, "n" + i]));
+  const text = s => `"${s.replace(/["\n\r`]/g, m => m === '"' ? "#quot;" : " ")}"`;
+  const shape = { start: ["([", "])"], end: ["([", "])"], decision: ["{", "}"], process: ["[", "]"] };
+  const out = ["flowchart TD"];
+  for (const n of nodes) { const [l, r] = shape[n.kind] ?? shape.process; out.push(`  ${id.get(n.id)}${l}${text(n.label)}${r}`); }
+  for (const e of edges) out.push(`  ${id.get(e.from)} -->${e.label ? `|${text(e.label)}|` : ""} ${id.get(e.to)}`);
+  const bad = nodes.filter(n => n.line && notes.some(x => x.line === n.line)).map(n => id.get(n.id));
+  if (bad.length) out.push("  classDef bug fill:#fbd5d5,stroke:#c0392b,color:#000", `  class ${bad.join(",")} bug`);
+  return out.join("\n");
+}
 
 export function download(filename, text, lang) {
   const a = Object.assign(document.createElement("a"), {
@@ -106,4 +123,14 @@ export function download(filename, text, lang) {
   });
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// After a review: make the flowchart, then the translation, in the background so both are ready when asked for.
+// `derive` is useReview's; the returned promises already have a handler, so an unused failure is silent.
+export function prepare(derive, api, code, language) {
+  const target = language === "javascript" ? "python" : "javascript";
+  const flow = derive(() => api.flowchart({ code, language }));
+  const translate = flow.catch(() => {}).then(() => derive(() => api.translate({ code, language, target })));
+  flow.catch(() => {}); translate.catch(() => {});
+  return { code, language, target, flow, translate };
 }

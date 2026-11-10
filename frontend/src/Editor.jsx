@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EditorView, basicSetup } from "codemirror";
 import { Decoration, keymap, placeholder } from "@codemirror/view";
-import { Compartment, Prec, StateEffect, StateField } from "@codemirror/state";
+import { Compartment, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { indentWithTab } from "@codemirror/commands";
 import { LanguageDescription, indentUnit, syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
@@ -32,7 +32,11 @@ function buildMarks(doc, notes, active) {
   return Decoration.set(ranges, true);
 }
 
-export default function Editor({ value, onChange, languageName, notes, active, onRun, viewRef }) {
+const NONE = [], noop = () => {};
+
+// `readOnly` makes a plain viewer (the translation pane); the other props are only needed for the main editor.
+export default function Editor({ value, onChange = noop, languageName, notes = NONE, active, onRun = noop, viewRef: given, readOnly = false }) {
+  const own = useRef(null), viewRef = given ?? own;
   const host = useRef(null), language = useRef(new Compartment()), handlers = useRef({});
   handlers.current = { onChange, onRun };
 
@@ -49,6 +53,8 @@ export default function Editor({ value, onChange, languageName, notes, active, o
         placeholder("Start writing, paste a file, or drop one here…"),
         language.current.of([]),
         marks,
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
         EditorView.contentAttributes.of({ "aria-label": "Code editor" }),
         EditorView.updateListener.of(u => { if (u.docChanged) handlers.current.onChange(u.state.doc.toString()); }),
       ],
