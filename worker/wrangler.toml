@@ -8,7 +8,7 @@ directory = "../frontend/dist"
 
 [vars]
 # Your Qwen endpoint. When the tunnel URL changes: edit this line, then run `bun run deploy`.
-MODEL_URL = "https://encryption-honest-mary-jackets.trycloudflare.com/v1/chat/completions"
+MODEL_URL = "https://triangle-alabama-classics-resorts.trycloudflare.com/v1/chat/completions"
 MODEL_NAME = "qwen3.8-27b-uncensored-mtp:latest"
 MODEL_TIMEOUT_MS = "120000"
 # The backup runs on the CPU and is much slower, so it gets longer before the Worker gives up (10 minutes).
