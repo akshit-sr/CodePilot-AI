@@ -44,7 +44,7 @@ example to `frontend/src/samples.js`.
 See [RUN.md](RUN.md) for keys, local runs and deploying.
 
 ```powershell
-npm.cmd install; npm.cmd run build
+npm install; npm run build
 cd worker; bun install; bun run dev    # http://127.0.0.1:8787
 ```
 

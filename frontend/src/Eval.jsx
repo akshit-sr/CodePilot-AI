@@ -5,7 +5,7 @@ import "./pages.css";
 
 const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
-const short = (name) => name.split("-").slice(0, 2).join("-"); // "qwen3.8-27b-uncensored-mtp:latest" -> "qwen3.8-27b"
+const short = (name) => name.split("-").slice(0, 2).join("-"); // e.g. "qwen3.5-9b-instruct" -> "qwen3.5-9b"
 const name = (c) => c.title ?? c.file;
 
 // One bar: k picks the model's color index (.s0, .s1, etc.); failed draws a striped track

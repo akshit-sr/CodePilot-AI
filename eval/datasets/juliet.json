@@ -1,5 +1,5 @@
 {
-  "title": "NIST Juliet (Java)",
+  "title": "NIST Juliet",
   "description": "10 test cases from the NIST Juliet Test Suite for Java 1.3 (Software Assurance Reference Dataset, samate.nist.gov), one per weakness type (CWE), in its simplest form. Comments, names and other hints that reveal the flaw were removed before review.",
   "source": "https://samate.nist.gov/SARD/test-suites/111",
   "cases": [

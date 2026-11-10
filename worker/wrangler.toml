@@ -2,7 +2,7 @@ name = "codepilot"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
-# The built React app (`npm.cmd run build` at the repo root) is served as static files.
+# The built React app (`npm run build` at the repo root) is served as static files.
 [assets]
 directory = "../frontend/dist"
 
