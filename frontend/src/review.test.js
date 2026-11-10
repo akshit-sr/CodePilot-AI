@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { diffLines, downloadName, humanize, languageFor, prepare, renameFor, toMermaid, toNotes } from "./review.js";
+import { diffLines, downloadName, backupNotice, humanize, languageFor, prepare, renameFor, toMermaid, toNotes } from "./review.js";
 
 test("findings become numbered notes, sorted by line then severity", () => {
   const notes = toNotes([
@@ -71,4 +71,11 @@ test("background prep makes the flowchart first, then the translation, even if t
   await expect(p.flow).rejects.toThrow("no");
   expect(await p.translate).toEqual({ code: "c" });
   expect(order).toEqual(["flow", "translate:python"]);
+});
+
+test("the backup-model notice says why, or nothing when the main model answered", () => {
+  expect(backupNotice(null)).toBeNull();
+  expect(backupNotice({ model: "m9", reason: "model_unavailable" })).toContain("main model was unreachable, so this review ran on the backup model (m9)");
+  expect(backupNotice({ model: "m9", reason: "model_timeout" })).toContain("was too slow to answer");
+  expect(backupNotice({ model: "m9", reason: "malformed_model_output" })).toContain("returned an unreadable review");
 });

@@ -29,7 +29,9 @@ export const LIMIT = 100_000;
 export const ERRORS = {
   unsupported_language: "That language isn’t supported yet.",
   code_too_large: "This file is over the 100 KB limit.",
-  model_unavailable: "The review model is unavailable. Check that the model service is running.",
+  model_unavailable: "The AI reviewer is unavailable right now. Please try again in a few minutes.",
+  translation_unchanged: "The model couldn’t translate this file into that language. Try again, or pick a different language.",
+  all_models_unavailable: "The AI reviewer is unavailable right now. The main model and the backup both failed to respond. Please try again in a few minutes.",
   model_timeout: "The model took too long to answer. Try again in a moment.",
   malformed_model_output: "The model returned an unreadable review. Try again.",
   sign_in_required: "Your session has expired. Sign out and sign in again.",
@@ -92,6 +94,10 @@ export function diffLines(before, after) {
   }
   return rows.concat(b.slice(b.length - end).map((text, k) => [" ", text, b.length - end + k + 1]));
 }
+
+// The margin notice shown when a review ran on the backup model, given the Worker's { model, reason }.
+const WHY = { model_timeout: "was too slow to answer", malformed_model_output: "returned an unreadable review" };
+export const backupNotice = b => b && `The main model ${WHY[b.reason] ?? "was unreachable"}, so this review ran on the backup model (${b.model}). It may be slower or less detailed.`;
 
 // "main" + python -> "main.py"; a name that already has an extension is kept.
 const extFor = lang => Object.keys(EXT).find(e => EXT[e] === lang) ?? "txt";

@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Masthead } from "./shell.jsx";
 import { SAMPLES } from "./samples.js";
-import { EXT, FALLBACK_LANGUAGES, LEVELS, LIMIT, diffLines, download, languageFor } from "./review.js";
+import { EXT, FALLBACK_LANGUAGES, LEVELS, LIMIT, backupNotice, diffLines, download, languageFor } from "./review.js";
 import { useDraft } from "./hooks/useDraft.js";
 import { useReview } from "./hooks/useReview.js";
 import { usePinnedNotes } from "./hooks/usePinnedNotes.js";
@@ -203,6 +203,7 @@ export default function Workspace() {
                 onRetry={() => server.run()}
                 onShowAll={() => setFilter(null)}
               />
+              {review?.backup && !loading && <div className="slip">{backupNotice(review.backup)}</div>}
             </div>
             {!loading && !stale && notes.map((note, i) =>
               <Note key={note.n} note={note} index={i} active={active === note.n} onHover={setActive} onOpen={showNoteLine} />

@@ -76,7 +76,7 @@ export function useReview(draft, onStart) {
         : `Review failed (HTTP ${r.status}).`));
 
       const findings = Array.isArray(data.findings) ? data.findings : [];
-      setReview({ notes: toNotes(findings), ...await checkRewrite(code, data.improved_code, lang), code });
+      setReview({ notes: toNotes(findings), ...await checkRewrite(code, data.improved_code, lang), code, backup: data.backup ?? null });
       if (typeof data.reviews_left === "number") setUsage(u => u && { ...u, left: data.reviews_left });
       loadHistory();
       const p = prepare(derive, api, code, lang);
