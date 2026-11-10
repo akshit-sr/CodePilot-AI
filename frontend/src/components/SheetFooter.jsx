@@ -23,7 +23,7 @@ export function SheetFooter({ counts, filter, onFilter, showCounts, loading, cod
     <div className={"gauge" + (tooBig ? " over" : "")}>
       <span>{code ? code.split("\n").length : 0} lines</span>
       <i style={{ "--fill": Math.min(1, size / LIMIT) }} aria-hidden="true" />
-      <span>{(size / 1000).toFixed(1)} / 100 KB</span>
+      <span>{(size / 1000).toFixed(1)} / 30 KB</span>
     </div>
 
     <button className="primary" onClick={() => onRun()} disabled={!canRun}>

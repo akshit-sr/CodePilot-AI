@@ -22,13 +22,13 @@ export const ABBR = {
 // Most severe first.
 export const LEVELS = ["critical", "high", "medium", "low"];
 
-// Same limit as the Worker (100 KB).
-export const LIMIT = 100_000;
+// Same limit as the Worker (30 KB).
+export const LIMIT = 30_000;
 
 // The Worker's error codes, in words.
 export const ERRORS = {
   unsupported_language: "That language isn’t supported yet.",
-  code_too_large: "This file is over the 100 KB limit.",
+  code_too_large: "This file is over the 30 KB limit.",
   model_unavailable: "The AI reviewer is unavailable right now. Please try again in a few minutes.",
   translation_unchanged: "The model couldn’t translate this file into that language. Try again, or pick a different language.",
   all_models_unavailable: "The AI reviewer is unavailable right now. The main model and the backup both failed to respond. Please try again in a few minutes.",

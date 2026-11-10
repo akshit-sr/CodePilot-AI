@@ -15,7 +15,7 @@ MODEL_TIMEOUT_MS = "120000"
 FALLBACK_MODEL_TIMEOUT_MS = "600000"
 # Backup model, tried when the one above fails: the Docker model's tunnel URL (see RUN.md) + /v1/chat/completions.
 # Leave empty for no backup. It changes each time the tunnel restarts: edit, then `bun run deploy`.
-FALLBACK_MODEL_URL = "https://florida-downloadable-effort-forward.trycloudflare.com/v1/chat/completions"
+FALLBACK_MODEL_URL = "https://act-dod-asbestos-since.trycloudflare.com/v1/chat/completions"
 FALLBACK_MODEL_NAME = "qwen3.5:9b"
 # Your Supabase project URL (Project Settings -> API), e.g. https://abcdefgh.supabase.co
 SUPABASE_URL = "https://kznbombadogwizvsruep.supabase.co"

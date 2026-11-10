@@ -197,7 +197,7 @@ test.each([
   [{ code: "x = 1", language: "constructor" }, 422, "unsupported_language"],
   [{ code: "" }, 422, "invalid_request"],
   [{ language: "python" }, 422, "invalid_request"],
-  [{ code: "x".repeat(100_001) }, 413, "code_too_large"],
+  [{ code: "x".repeat(30_001) }, 413, "code_too_large"],
 ])("rejects %#", async (body, status, detail) => {
   const res = await review(body);
   expect([res.status, (await res.json()).detail]).toEqual([status, detail]);

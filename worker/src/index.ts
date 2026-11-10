@@ -5,7 +5,7 @@ export const LANGUAGES: Record<string, string> = {
   python: "Python", javascript: "JavaScript", typescript: "TypeScript", java: "Java", c: "C", cpp: "C++",
   csharp: "C#", go: "Go", rust: "Rust", php: "PHP", ruby: "Ruby", kotlin: "Kotlin",
 };
-const MAX_CODE_SIZE = 100_000;
+const MAX_CODE_SIZE = 30_000;   // ~20k tokens: the 27B model reads ~250 tokens/s and Cloudflare tunnels drop after ~100s of silence
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Plain settings live in wrangler.toml [vars]; CLERK_SECRET_KEY, SUPABASE_SECRET_KEY and FALLBACK_MODEL_KEY are secrets
