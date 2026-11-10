@@ -1,129 +1,179 @@
-# Run and deploy
+# Run and deploy CodePilot AI
 
-CodePilot runs as one Cloudflare Worker (`worker/`) that serves the built React
-site and the API. Sign-in is Clerk, data is Supabase, reviews come from the
-Qwen endpoint in `worker/wrangler.toml`.
+The Cloudflare Worker serves both the built React app and the API. Clerk
+handles sign-in, Supabase stores reviews and usage, and a Qwen endpoint runs
+reviews, translations, and flowchart generation. See [README.md](README.md)
+for the API and supported languages.
 
 ## One-time setup
 
-1. Install: `npm install` in the repo root, `bun install` in `worker/`.
-2. Supabase: run `supabase/migrations/0001_init.sql` once in the project's SQL
-   editor (already done for `kznbombadogwizvsruep`).
-3. Keys, all kept out of Git:
-   - `frontend/.env`: `VITE_CLERK_PUBLISHABLE_KEY=pk_...` (Clerk -> API keys).
-     It is public and ends up in the built site; that is expected.
-   - `worker/.dev.vars`, for local runs:
-     ```
-     CLERK_SECRET_KEY=sk_...
-     SUPABASE_SECRET_KEY=sb_secret_...
-     ```
+Use PowerShell on Windows. Install Node.js 22.12 or newer and Bun, then run
+these commands from the repository root.
+
+```powershell
+npm.cmd ci
+cd worker
+bun install --frozen-lockfile
+cd ..
+```
+
+In your Supabase project's SQL editor, apply the migrations in order.
+
+1. [`0001_init.sql`](supabase/migrations/0001_init.sql) creates the initial
+   schema.
+2. [`0002_three_hour_window.sql`](supabase/migrations/0002_three_hour_window.sql)
+   updates usage tracking for three-hour windows.
+
+If the initial migration is already applied, start with the second migration
+if it is still pending.
+
+Create `frontend/.env` with the Clerk publishable key. The frontend build
+includes this value.
+
+```dotenv
+VITE_CLERK_PUBLISHABLE_KEY=pk_...
+```
+
+Create `worker/.dev.vars` with the corresponding Clerk secret and your
+Supabase secret. Keep these values out of Git.
+
+```dotenv
+CLERK_SECRET_KEY=sk_...
+SUPABASE_SECRET_KEY=sb_secret_...
+```
+
+Set `SUPABASE_URL`, `MODEL_NAME`, and `MODEL_URL` under `[vars]` in
+[`worker/wrangler.toml`](worker/wrangler.toml). Use the Supabase project URL
+and the full OpenAI-compatible chat completions URL for the Qwen model.
+
+`REVIEW_LIMIT` defaults to 50 model requests per user per three-hour window.
+Reviews, translations, and flowcharts share that quota. Windows reset at
+00:00, 03:00, 06:00 UTC, and every three hours after that. `MODEL_TIMEOUT_MS`
+sets the timeout per model call.
 
 ## Run locally
 
+From the repository root, build the frontend and start the Worker.
+
 ```powershell
-npm run build          # build the site into frontend/dist
-cd worker; bun run dev     # site + API on http://127.0.0.1:8787
+npm.cmd run build
+cd worker
+bun run dev
 ```
 
-For frontend work, also run `npm run dev` (http://127.0.0.1:5173, hot
-reload; API calls go to the Worker on 8787). Restart `bun run dev` after a
-`npm run build`, or it serves 404 for the page.
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787) and sign in to try a
+review. In a second PowerShell window, you can check that the Worker responds.
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/health
+```
+
+The health endpoint checks that the Worker is running. Submitting a review
+also exercises Clerk, Supabase, and the model endpoint.
+
+For frontend hot reload, keep the Worker running and start
+`npm.cmd run dev` from the repository root in a second terminal. Vite runs
+at `http://127.0.0.1:5173`. Use the Worker URL on port 8787 to exercise
+translation and flowcharts, since the current Vite proxy covers review,
+history, usage, health, and language requests. If the Worker serves a 404
+after a frontend rebuild, restart `bun run dev`.
 
 ## Deploy
 
-First time only:
+From the repository root, enter `worker`, sign in to Cloudflare, and set the
+deployed Worker's secrets. Use a matching pair of Clerk keys for the deployment
+and set its publishable key in `frontend/.env` before building locally.
 
 ```powershell
 cd worker
-bunx wrangler login                               # opens the browser
-bunx wrangler secret put CLERK_SECRET_KEY         # paste sk_...
-bunx wrangler secret put SUPABASE_SECRET_KEY      # paste sb_secret_...
+bunx wrangler login
+bunx wrangler secret put CLERK_SECRET_KEY
+bunx wrangler secret put SUPABASE_SECRET_KEY
+bun run deploy
 ```
 
-Every deploy:
+For subsequent manual deployments, run `bun run deploy` from `worker/`.
+The command builds the frontend and uploads the Worker. Wrangler prints the
+deployment URL. When the primary model tunnel URL changes, update
+`MODEL_URL` and deploy again.
 
-```powershell
-cd worker; bun run deploy    # builds the site, then uploads the Worker
-```
+### Deploy from GitHub Actions
 
-The site is then at `https://codepilot.<your-subdomain>.workers.dev`.
-Wrangler asks you to pick the subdomain on the first deploy.
-
-When the Qwen tunnel URL changes, edit `MODEL_URL` in `worker/wrangler.toml`
-and run `bun run deploy` again. Other settings there: `MODEL_NAME`,
-`MODEL_TIMEOUT_MS`, `SUPABASE_URL`, `DAILY_REVIEW_LIMIT`.
-
-### Clerk production keys
-
-The deploy above uses Clerk's development keys, which work on any domain but
-show a "Development mode" badge. Clerk's production instance needs a domain you
-own. Once you have one: create the production instance in the Clerk dashboard,
-put its `pk_live_...` in `frontend/.env`, run
-`bunx wrangler secret put CLERK_SECRET_KEY` with its `sk_live_...`, and deploy.
+The [CI workflow](.github/workflows/ci.yml) deploys after checks pass on pushes
+to `main`. In the repository's **Settings → Secrets and variables → Actions**,
+configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository
+secrets and `VITE_CLERK_PUBLISHABLE_KEY` as a repository variable. Set the
+Clerk and Supabase runtime secrets on the Worker as shown above.
 
 ## Backup model (Docker)
 
-When the main Qwen endpoint fails, the Worker retries on a backup: Qwen 3.5 9B
-running in Docker on this computer, reachable through a Cloudflare quick tunnel.
+The Worker tries the backup model when the primary model call fails and
+`FALLBACK_MODEL_URL` is set. [`compose.yaml`](compose.yaml) runs a CPU-based
+llama.cpp server configured for Qwen 3.5 9B, along with a Cloudflare quick
+tunnel for deployed Workers.
 
-One-time: install Docker Desktop, copy `.env.example` to `.env`, set
-`MODEL_FILE` to your `.gguf` file and `MODEL_API_KEY` to a long random string,
-then give the Worker the same key:
+Install Docker Desktop. From the repository root, copy
+[`.env.example`](.env.example) to `.env`.
 
 ```powershell
-cd worker; bunx wrangler secret put FALLBACK_MODEL_KEY   # paste MODEL_API_KEY
+Copy-Item .env.example .env
 ```
 
-Start it (from the repo root):
+Edit `.env`. Set `MODEL_FILE` to the absolute path to your GGUF file and
+`MODEL_API_KEY` to a long random value. Then start the containers and find
+the tunnel URL.
 
 ```powershell
 docker compose up -d
 docker compose logs tunnel | Select-String trycloudflare.com
 ```
 
-Put that URL plus `/v1/chat/completions` in `FALLBACK_MODEL_URL` in
-`worker/wrangler.toml`, then `cd worker; bun run deploy`. The quick-tunnel URL
-changes whenever the tunnel container restarts; repeat this step then.
+The tunnel starts after the model container passes its health check.
 
-`docker compose down` stops it. The model runs on the CPU (Docker on Windows
-can't use the Intel Arc GPU), so backup reviews are slow; the first start also
-takes a minute or two to load the model. Locally the model is also at
-`http://127.0.0.1:8080`, so `worker/.dev.vars` can use
-`FALLBACK_MODEL_URL=http://127.0.0.1:8080/v1/chat/completions` plus
-`FALLBACK_MODEL_KEY` for `bun run dev`.
+- For local development, put
+  `FALLBACK_MODEL_URL=http://127.0.0.1:8080/v1/chat/completions` and
+  `FALLBACK_MODEL_KEY=<MODEL_API_KEY>` in `worker/.dev.vars`, then restart
+  Wrangler.
+- For a deployed Worker, set `FALLBACK_MODEL_URL` in `worker/wrangler.toml`
+  to the tunnel URL followed by `/v1/chat/completions`. Set
+  `FALLBACK_MODEL_KEY` with `bunx wrangler secret put FALLBACK_MODEL_KEY`
+  from `worker/`, using the same value as `MODEL_API_KEY`, and deploy.
+  If the tunnel restarts, check its new URL and deploy with the updated value.
 
-Without the API key anyone with the tunnel URL could use the model; keep
-`MODEL_API_KEY` set.
+From the repository root, run `docker compose down` to stop both containers.
 
 ## Model evaluation (Python)
 
-`eval/run_eval.py` sends 6 files with known bugs to both models in
-`worker/wrangler.toml` and scores them (bugs caught, findings that were real,
-seconds per file). It writes `frontend/public/eval.json`, which the site shows
-at `#eval` (the "Evaluate model" button in the top bar).
+Install uv and use Python 3.11 or newer. The evaluation script reads the model
+URLs and names from `worker/wrangler.toml`. It measures known bugs caught,
+finding precision, and model response time. The app displays the generated
+results at `/#eval`.
+
+Run these commands from the repository root. The scoring tests run locally.
+Evaluation requires the configured model endpoint to be reachable.
 
 ```powershell
 cd eval
-uv run pytest                                  # scoring tests
-$env:FALLBACK_MODEL_KEY = "<MODEL_API_KEY>"    # optional: include the Docker backup model
-uv run python run_eval.py                      # needs the model tunnels up
-cd ..; npm run build                       # then deploy: cd worker; bun run deploy
+uv run pytest
+uv run python run_eval.py --main-only
+uv run python run_eval.py quixbugs --main-only --timeout=300
+uv run python run_eval.py juliet --main-only --timeout=300
+cd ..
+npm.cmd run build
 ```
 
-The page also has two benchmark tabs:
+| Suite | Results in `frontend/public/` |
+| --- | --- |
+| Project test cases | `eval.json` |
+| QuixBugs benchmark | `eval-quixbugs.json` |
+| NIST Juliet benchmark | `eval-juliet.json` |
 
-- "QuixBugs benchmark": 14 programs from QuixBugs (Lin et al., SPLASH 2017,
-  MIT), each with one known bug located by diffing against the official fix.
-- "NIST Juliet": 10 test cases from NIST's Juliet Test Suite for Java
-  1.3 (samate.nist.gov/SARD), one per CWE, with comments and hints stripped.
+To include the backup model, configure `FALLBACK_MODEL_URL` and
+`FALLBACK_MODEL_NAME` in `worker/wrangler.toml`, set
+`$env:FALLBACK_MODEL_KEY` to the model API key in PowerShell, and omit
+`--main-only`. The `--timeout` option sets the timeout in seconds. An
+interrupted evaluation can resume from checkpoints in `eval/.progress/`.
 
-`eval/datasets/*.json` are committed; refetch only to change the case lists.
-Progress is saved per file, so a stopped run resumes where it left off.
-
-```powershell
-cd eval
-uv run python fetch_quixbugs.py                       # optional: rebuild datasets/quixbugs.json
-uv run python fetch_juliet.py                         # optional: rebuild datasets/juliet.json (downloads ~77 MB once)
-uv run python run_eval.py quixbugs --main-only --timeout=300  # writes frontend/public/eval-quixbugs.json
-uv run python run_eval.py juliet --main-only --timeout=300  # writes frontend/public/eval-juliet.json
-```
+The benchmark datasets are already in [`eval/datasets/`](eval/datasets/).
+To regenerate them, run `uv run python fetch_quixbugs.py` or
+`uv run python fetch_juliet.py` from `eval/`.
