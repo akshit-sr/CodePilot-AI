@@ -11,7 +11,8 @@ export function usePinnedNotes(editorView, margin, enabled) {
   }, []);
 
   useLayoutEffect(() => {
-    const view = editorView.current, box = margin.current;
+    const view = editorView.current,
+      box = margin.current;
     if (!view || !box || !enabled) return;
     const offset = view.documentTop - box.getBoundingClientRect().top;
     let floor = box.querySelector(".margin-head")?.offsetHeight || 0;

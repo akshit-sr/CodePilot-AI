@@ -1,5 +1,15 @@
 import { expect, test } from "bun:test";
-import { diffLines, downloadName, backupNotice, humanize, languageFor, prepare, renameFor, toMermaid, toNotes } from "./review.js";
+import {
+  diffLines,
+  downloadName,
+  backupNotice,
+  humanize,
+  languageFor,
+  prepare,
+  renameFor,
+  toMermaid,
+  toNotes,
+} from "./review.js";
 
 test("findings become numbered notes, sorted by line then severity", () => {
   const notes = toNotes([
@@ -24,7 +34,10 @@ test("diff keeps, removes and adds lines with the right numbers", () => {
     [" ", "c", 3],
     ["+", "d", 4],
   ]);
-  expect(diffLines("x\r\ny", "x\ny\n")).toEqual([[" ", "x", 1], [" ", "y", 2]]);
+  expect(diffLines("x\r\ny", "x\ny\n")).toEqual([
+    [" ", "x", 1],
+    [" ", "y", 2],
+  ]);
 });
 
 test("small helpers", () => {
@@ -47,25 +60,39 @@ test("a translated file gets the target language's extension", () => {
 
 test("flowchart data becomes mermaid text and flagged lines are painted", () => {
   const graph = {
-    nodes: [{ id: "a", label: 'say "hi"', kind: "start", line: 1 }, { id: "b", label: "x?", kind: "decision", line: 3 }],
-    edges: [{ from: "a", to: "b", label: "go" }, { from: "b", to: "a", label: "" }],
+    nodes: [
+      { id: "a", label: 'say "hi"', kind: "start", line: 1 },
+      { id: "b", label: "x?", kind: "decision", line: 3 },
+    ],
+    edges: [
+      { from: "a", to: "b", label: "go" },
+      { from: "b", to: "a", label: "" },
+    ],
   };
-  expect(toMermaid(graph, [{ line: 3 }])).toBe([
-    "flowchart TD",
-    '  n0(["say #quot;hi#quot;"])',
-    '  n1{"x?"}',
-    '  n0 -->|"go"| n1',
-    "  n1 --> n0",
-    "  classDef bug fill:#fbd5d5,stroke:#c0392b,color:#000",
-    "  class n1 bug",
-  ].join("\n"));
+  expect(toMermaid(graph, [{ line: 3 }])).toBe(
+    [
+      "flowchart TD",
+      '  n0(["say #quot;hi#quot;"])',
+      '  n1{"x?"}',
+      '  n0 -->|"go"| n1',
+      "  n1 --> n0",
+      "  classDef bug fill:#fbd5d5,stroke:#c0392b,color:#000",
+      "  class n1 bug",
+    ].join("\n"),
+  );
 });
 
 test("background prep makes the flowchart first, then the translation, even if the flowchart fails", async () => {
   const order = [];
   const api = {
-    flowchart: async () => { order.push("flow"); throw Error("no"); },
-    translate: async a => { order.push("translate:" + a.target); return { code: "c" }; },
+    flowchart: async () => {
+      order.push("flow");
+      throw Error("no");
+    },
+    translate: async a => {
+      order.push("translate:" + a.target);
+      return { code: "c" };
+    },
   };
   const p = prepare(call => call(), api, "x", "javascript");
   await expect(p.flow).rejects.toThrow("no");
@@ -75,7 +102,9 @@ test("background prep makes the flowchart first, then the translation, even if t
 
 test("the backup-model notice says why, or nothing when the main model answered", () => {
   expect(backupNotice(null)).toBeNull();
-  expect(backupNotice({ model: "m9", reason: "model_unavailable" })).toContain("main model was unreachable, so this review ran on the backup model (m9)");
+  expect(backupNotice({ model: "m9", reason: "model_unavailable" })).toContain(
+    "main model was unreachable, so this review ran on the backup model (m9)",
+  );
   expect(backupNotice({ model: "m9", reason: "model_timeout" })).toContain("was too slow to answer");
   expect(backupNotice({ model: "m9", reason: "malformed_model_output" })).toContain("returned an unreadable review");
 });

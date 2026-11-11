@@ -25,19 +25,34 @@ function buildMarks(doc, notes, active) {
     if (note.line < 1 || note.line > doc.lines) continue;
     (byLine.get(note.line) || byLine.set(note.line, []).get(note.line)).push(note);
   }
-  const ranges = [...byLine].map(([line, list]) => Decoration.line({
-    class: `cm-mark sev-${list[0].severity}${list.some(n => n.n === active) ? " is-active" : ""}`,
-    attributes: { "data-notes": list.map(n => n.n).join(" "), style: `--d: ${list[0].n}` },
-  }).range(doc.line(line).from));
+  const ranges = [...byLine].map(([line, list]) =>
+    Decoration.line({
+      class: `cm-mark sev-${list[0].severity}${list.some(n => n.n === active) ? " is-active" : ""}`,
+      attributes: { "data-notes": list.map(n => n.n).join(" "), style: `--d: ${list[0].n}` },
+    }).range(doc.line(line).from),
+  );
   return Decoration.set(ranges, true);
 }
 
-const NONE = [], noop = () => {};
+const NONE = [],
+  noop = () => {};
 
 // `readOnly` makes a plain viewer (the translation pane); the other props are only needed for the main editor.
-export default function Editor({ value, onChange = noop, languageName, notes = NONE, active, onRun = noop, viewRef: given, readOnly = false }) {
-  const own = useRef(null), viewRef = given ?? own;
-  const host = useRef(null), language = useRef(new Compartment()), handlers = useRef({});
+export default function Editor({
+  value,
+  onChange = noop,
+  languageName,
+  notes = NONE,
+  active,
+  onRun = noop,
+  viewRef: given,
+  readOnly = false,
+}) {
+  const own = useRef(null),
+    viewRef = given ?? own;
+  const host = useRef(null),
+    language = useRef(new Compartment()),
+    handlers = useRef({});
   handlers.current = { onChange, onRun };
 
   useEffect(() => {
@@ -56,11 +71,16 @@ export default function Editor({ value, onChange = noop, languageName, notes = N
         EditorState.readOnly.of(readOnly),
         EditorView.editable.of(!readOnly),
         EditorView.contentAttributes.of({ "aria-label": "Code editor" }),
-        EditorView.updateListener.of(u => { if (u.docChanged) handlers.current.onChange(u.state.doc.toString()); }),
+        EditorView.updateListener.of(u => {
+          if (u.docChanged) handlers.current.onChange(u.state.doc.toString());
+        }),
       ],
     });
     viewRef.current = view;
-    return () => { view.destroy(); viewRef.current = null; };
+    return () => {
+      view.destroy();
+      viewRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -73,8 +93,12 @@ export default function Editor({ value, onChange = noop, languageName, notes = N
     let cancelled = false;
     const desc = LanguageDescription.matchLanguageName(languages, languageName, false);
     if (!desc) return void viewRef.current?.dispatch({ effects: language.current.reconfigure([]) });
-    desc.load().then(support => { if (!cancelled) viewRef.current?.dispatch({ effects: language.current.reconfigure(support) }); });
-    return () => { cancelled = true; };
+    desc.load().then(support => {
+      if (!cancelled) viewRef.current?.dispatch({ effects: language.current.reconfigure(support) });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [languageName]);
 
   useEffect(() => {
