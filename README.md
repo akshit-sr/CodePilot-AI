@@ -13,12 +13,12 @@ and calls a Qwen endpoint. Supabase stores review history and tracks usage.
 
 Install Git, Node.js 22.12 or newer, and Bun. In PowerShell, run each command
 from the folder where you want the project. If you already cloned the repo
-and entered its folder, start with `npm.cmd ci`.
+and entered its folder, start with `npm ci`.
 
 ```powershell
 git clone https://github.com/akshit-sr/CodePilot-AI.git
 cd CodePilot-AI
-npm.cmd ci
+npm ci
 ```
 
 Configure the services before building the site.
@@ -37,7 +37,7 @@ Configure the services before building the site.
 From the repository root, build the site and start the Worker.
 
 ```powershell
-npm.cmd run build
+npm run build
 cd worker
 bun install --frozen-lockfile
 bun run dev
@@ -80,7 +80,7 @@ Authenticated requests use `Authorization: Bearer <Clerk session token>`.
 | --- | --- | --- | --- |
 | GET | `/health` | No | Service status |
 | GET | `/languages` | No | Supported language IDs and names |
-| POST | `/review` | Yes | `findings`, `improved_code`, `id`, and `reviews_left` |
+| POST | `/review` | Yes | `findings`, `improved_code`, `id`, `reviews_left`, and `backup` (`null`, or the backup `model` that answered and the `reason`) |
 | POST | `/translate` | Yes | Translated `code`, target `language`, and `reviews_left` |
 | POST | `/flowchart` | Yes | `nodes`, `edges`, and `reviews_left` |
 | GET | `/usage` | Yes | `limit`, `used`, `left`, and `resets_at` for the current window |
@@ -88,7 +88,7 @@ Authenticated requests use `Authorization: Bearer <Clerk session token>`.
 | GET | `/history/:id` | Yes | Full saved review |
 | DELETE | `/history/:id` | Yes | `204 No Content` on successful deletion |
 
-The three POST routes accept JSON with a nonempty `code` string up to 100,000
+The three POST routes accept JSON with a nonempty `code` string up to 30,000
 UTF-8 bytes, an optional `language` (default `python`), and an optional
 `filename` (default `untitled`). Translation also requires a supported
 `target` language ID.
@@ -106,13 +106,15 @@ Errors use the JSON shape `{"detail":"<code>"}`.
 | --- | --- | --- |
 | 401 | `sign_in_required` | Missing or invalid Clerk session token |
 | 404 | `not_found` | Review ID is invalid or absent from the user's history |
-| 413 | `code_too_large` | Source exceeds 100,000 UTF-8 bytes |
+| 413 | `code_too_large` | Source exceeds 30,000 UTF-8 bytes |
 | 422 | `invalid_request` | Request body or field types are invalid |
 | 422 | `unsupported_language` | Source or target language ID is unsupported |
 | 429 | `daily_limit_reached` | The current three-hour quota is exhausted |
 | 500 | `internal_error` | Unexpected server error |
 | 502 | `malformed_model_output` | Model output failed validation |
+| 502 | `translation_unchanged` | The model returned the source untranslated twice |
 | 503 | `model_unavailable` | Model endpoint was unreachable or returned an error |
+| 503 or 504 | `all_models_unavailable` | The primary model and the backup both failed |
 | 503 | `database_unavailable` | Supabase request failed |
 | 504 | `model_timeout` | Model request timed out |
 
@@ -130,6 +132,7 @@ Worker settings are in [`worker/wrangler.toml`](worker/wrangler.toml) under
 | `REVIEW_LIMIT` | Model requests allowed per user in a three-hour block (default 50) |
 | `FALLBACK_MODEL_URL` | Optional backup chat completions URL |
 | `FALLBACK_MODEL_NAME` | Backup model name |
+| `FALLBACK_MODEL_TIMEOUT_MS` | Timeout per backup model call in milliseconds (default 600,000) |
 
 Keep `CLERK_SECRET_KEY`, `SUPABASE_SECRET_KEY`, and the optional
 `FALLBACK_MODEL_KEY` in `worker/.dev.vars` for local development. For a

@@ -97,7 +97,7 @@ def prompt(code, language, filename):
     numbered = "\n".join(f"{i}| {line}" for i, line in enumerate(code.split("\n"), 1))
     return f"""Review this {LANGUAGE_NAMES[language]} source file ({filename}). Return only valid JSON matching this schema:
 {{"findings":[{{"type":"string","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}}],"improved_code":"string or null"}}
-Report actionable bugs, security issues, and maintainability problems. "type" is a short title for the problem, e.g. "SQL injection".
+Report actionable problems: bugs and logical errors, security issues, inefficient code, poor coding practices, readability problems, unnecessary or repeated code, and unhandled edge cases. "type" is a short title for the problem, e.g. "SQL injection".
 Each source line below starts with its line number and "| "; use that number for "line". The numbers are not part of the code: leave them out of improved_code.
 Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
 
@@ -116,7 +116,7 @@ def score(bugs, lines):
 
 
 def review(url, model, key, case, timeout):
-    """Returns the model's findings as [{line, severity, type, explanation}], or None if it failed or sent bad JSON."""
+    """Returns the model's findings as [{line, severity, type, explanation, suggested_fix}], or None if it failed or sent bad JSON."""
     body = json.dumps({
         "model": model,
         "messages": [{"role": "system", "content": "You are a precise code reviewer."},
@@ -128,7 +128,7 @@ def review(url, model, key, case, timeout):
         with urllib.request.urlopen(urllib.request.Request(url, body, headers), timeout=timeout) as r:
             content = json.load(r)["choices"][0]["message"]["content"]
         return [{"line": int(f["line"]), "severity": str(f.get("severity", "")), "type": str(f.get("type", "")),
-                 "explanation": str(f.get("explanation", ""))} for f in json.loads(content)["findings"]]
+                 "explanation": str(f.get("explanation", "")), "suggested_fix": str(f.get("suggested_fix", ""))} for f in json.loads(content)["findings"]]
     except Exception as e:
         print(f"  {case['file']}: failed ({e})")
         return None

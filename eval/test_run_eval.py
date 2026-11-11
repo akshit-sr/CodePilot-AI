@@ -72,6 +72,13 @@ def test_resume_skips_files_already_done(monkeypatch, tmp_path):
     assert set(run_eval.json.loads(checkpoint.read_text())) == {"a", "b"}
 
 
+def test_quality_averages_only_rated_findings():
+    from rate import quality
+    findings = [{"explanation_score": 2, "fix_score": 1}, {"explanation_score": 1}, {}]
+    assert quality(findings) == {"rated": 2, "explanation": 0.75, "fix": 0.5}
+    assert quality([{}]) == {"rated": 0, "explanation": None, "fix": None}
+
+
 def test_source_line_also_counts_as_a_catch():
     caught, extra = score([{"line": 10, "also": [4], "label": "a"}], [4])
     assert len(caught) == 1 and extra == []

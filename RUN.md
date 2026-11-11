@@ -7,8 +7,9 @@ Qwen endpoint in `worker/wrangler.toml`.
 ## One-time setup
 
 1. Install: `npm install` in the repo root, `bun install` in `worker/`.
-2. Supabase: run `supabase/migrations/0001_init.sql` once in the project's SQL
-   editor (already done for `kznbombadogwizvsruep`).
+2. Supabase: run `supabase/migrations/0001_init.sql` and then
+   `0002_three_hour_window.sql` once in the project's SQL editor (already done
+   for `kznbombadogwizvsruep`).
 3. Keys, all kept out of Git:
    - `frontend/.env`: `VITE_CLERK_PUBLISHABLE_KEY=pk_...` (Clerk -> API keys).
      It is public and ends up in the built site; that is expected.
@@ -51,7 +52,7 @@ Wrangler asks you to pick the subdomain on the first deploy.
 
 When the Qwen tunnel URL changes, edit `MODEL_URL` in `worker/wrangler.toml`
 and run `bun run deploy` again. Other settings there: `MODEL_NAME`,
-`MODEL_TIMEOUT_MS`, `SUPABASE_URL`, `DAILY_REVIEW_LIMIT`.
+`MODEL_TIMEOUT_MS`, `FALLBACK_MODEL_TIMEOUT_MS`, `SUPABASE_URL`, `REVIEW_LIMIT`.
 
 ### Clerk production keys
 
@@ -109,6 +110,26 @@ $env:FALLBACK_MODEL_KEY = "<MODEL_API_KEY>"    # optional: include the Docker ba
 uv run python run_eval.py                      # needs the model tunnels up
 cd ..; npm run build                       # then deploy: cd worker; bun run deploy
 ```
+
+### Explanation and fix quality (manual rubric)
+
+The scores above only check line numbers. `eval/rate.py` covers the other two
+criteria: it shows you each finding that matched a known bug and asks for two
+scores, which the `#eval` page then charts as a percentage of the top mark.
+
+| Score | Explanation | Suggested fix |
+| --- | --- | --- |
+| 0 | Wrong or misleading | Wrong, or does not fix the bug |
+| 1 | Right problem, but vague | Fixes it only partly |
+| 2 | Names the cause and what goes wrong | Correct and complete |
+
+```powershell
+cd eval
+uv run python rate.py              # or: rate.py quixbugs / rate.py juliet
+```
+
+Ctrl+C stops and keeps the scores so far. Result files made before fixes were
+recorded only ask for the explanation score; rerun `run_eval.py` to rate fixes.
 
 The page also has two benchmark tabs:
 

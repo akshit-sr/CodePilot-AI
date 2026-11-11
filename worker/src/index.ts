@@ -23,7 +23,7 @@ class ApiError extends Error {
 
 const prompt = (code: string, language: string, filename: string) => `Review this ${LANGUAGES[language]} source file (${filename}). Return only valid JSON matching this schema:
 {"findings":[{"type":"string","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}],"improved_code":"string or null"}
-Report actionable bugs, security issues, and maintainability problems. "type" is a short title for the problem, e.g. "SQL injection".
+Report actionable problems: bugs and logical errors, security issues, inefficient code, poor coding practices, readability problems, unnecessary or repeated code, and unhandled edge cases. "type" is a short title for the problem, e.g. "SQL injection".
 Each source line below starts with its line number and "| "; use that number for "line". The numbers are not part of the code: leave them out of improved_code.
 Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
 

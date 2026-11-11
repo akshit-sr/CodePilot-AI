@@ -56,19 +56,28 @@ function Charts({ data }) {
           <figcaption>
             Accuracy<span>higher is better</span>
           </figcaption>
-          <div className="cgroup">
-            <p>Bugs caught</p>
-            {ms.map((m, k) => (
-              <Bar
-                key={m.name}
-                k={k}
-                value={m.recall ?? 0}
-                max={1}
-                label={pct(m.recall)}
-                tip={`${short(m.name)}: ${pct(m.recall)} bugs caught`}
-              />
+          {/* The two quality rows are hand scores from eval/rate.py; they appear once someone has rated. */}
+          {[
+            ["Bugs caught", (m) => m.recall],
+            ["Explanation quality (rated by hand)", (m) => m.quality?.explanation],
+            ["Fix quality (rated by hand)", (m) => m.quality?.fix],
+          ]
+            .filter(([, get], n) => n === 0 || ms.some((m) => get(m) != null))
+            .map(([label, get]) => (
+              <div className="cgroup" key={label}>
+                <p>{label}</p>
+                {ms.map((m, k) => (
+                  <Bar
+                    key={m.name}
+                    k={k}
+                    value={get(m) ?? 0}
+                    max={1}
+                    label={pct(get(m))}
+                    tip={`${short(m.name)}: ${pct(get(m))} ${label.toLowerCase()}`}
+                  />
+                ))}
+              </div>
             ))}
-          </div>
           <div className="caxis">
             <span>0%</span>
             <span>50%</span>
@@ -182,6 +191,7 @@ function Detail({ c, i, models }) {
                     </b>{" "}
                     {f.real && <span>matches the known bug</span>}
                     <p>{f.explanation}</p>
+                    {f.suggested_fix && <p>Fix: {f.suggested_fix}</p>}
                   </li>
                 ))}
               </ul>
