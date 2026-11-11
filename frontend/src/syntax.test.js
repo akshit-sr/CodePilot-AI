@@ -38,7 +38,13 @@ test("comments must survive a rewrite word for word", async () => {
   expect(await check.keepsComments(before, "# load the config\nx = 1  # default\n", "python")).toBe(false);
   expect(await check.keepsComments(before, "x = 1  # default\n", "python")).toBe(false);
   expect(await check.keepsComments(before, "s = '# load config'\nx = 1  # default\n", "python")).toBe(false);
-  expect(await check.keepsComments("/**\n * Adds.\n */\nfn add() {} // sum", "    /**\n     * Adds.\n     */\nfn add() { } // sum", "rust")).toBe(true);
+  expect(
+    await check.keepsComments(
+      "/**\n * Adds.\n */\nfn add() {} // sum",
+      "    /**\n     * Adds.\n     */\nfn add() { } // sum",
+      "rust",
+    ),
+  ).toBe(true);
   expect(await check.keepsComments("/* a */ int x; // b", "int x; // b", "c")).toBe(false);
 });
 

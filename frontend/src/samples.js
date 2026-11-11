@@ -1,6 +1,8 @@
 // One short file per supported language, each with a few deliberate problems for the reviewer to find.
 export const SAMPLES = {
-  python: ["sample.py", `import requests
+  python: [
+    "sample.py",
+    `import requests
 
 API_KEY = "demo_secret_not_for_production_123"
 
@@ -13,8 +15,11 @@ def get_user(user_id):
 
 def format_name(user):
     return user["first_name"] + " " + user["last_name"]
-`],
-  javascript: ["users.js", `const API_KEY = "demo_secret_not_for_production_123";
+`,
+  ],
+  javascript: [
+    "users.js",
+    `const API_KEY = "demo_secret_not_for_production_123";
 
 async function getUser(id) {
   const res = await fetch("https://api.example.com/users/" + id, { headers: { Authorization: API_KEY } });
@@ -26,8 +31,11 @@ function total(items) {
   for (var i = 0; i <= items.length; i++) sum += items[i].price;
   return sum;
 }
-`],
-  typescript: ["cart.ts", `interface Item { name: string; price: number }
+`,
+  ],
+  typescript: [
+    "cart.ts",
+    `interface Item { name: string; price: number }
 
 export function total(items: Item[]): number {
   let sum = 0;
@@ -38,8 +46,11 @@ export function total(items: Item[]): number {
 export function parseQty(input: any): number {
   return parseInt(input);
 }
-`],
-  java: ["Accounts.java", `import java.sql.*;
+`,
+  ],
+  java: [
+    "Accounts.java",
+    `import java.sql.*;
 
 public class Accounts {
     public static ResultSet find(Connection db, String name) throws SQLException {
@@ -51,8 +62,11 @@ public class Accounts {
         return a == b;
     }
 }
-`],
-  c: ["greet.c", `#include <stdio.h>
+`,
+  ],
+  c: [
+    "greet.c",
+    `#include <stdio.h>
 #include <string.h>
 
 void greet(const char *name) {
@@ -65,8 +79,11 @@ int main(void) {
     greet("a name that is much longer than sixteen bytes");
     return 0;
 }
-`],
-  cpp: ["numbers.cpp", `#include <iostream>
+`,
+  ],
+  cpp: [
+    "numbers.cpp",
+    `#include <iostream>
 #include <vector>
 
 int* makeArray(int n) {
@@ -80,8 +97,11 @@ int main() {
     int* a = makeArray(10);
     return 0;
 }
-`],
-  csharp: ["Login.cs", `using System;
+`,
+  ],
+  csharp: [
+    "Login.cs",
+    `using System;
 using System.Data.SqlClient;
 
 class Login {
@@ -92,8 +112,11 @@ class Login {
         return (int)cmd.ExecuteScalar() > 0;
     }
 }
-`],
-  go: ["main.go", `package main
+`,
+  ],
+  go: [
+    "main.go",
+    `package main
 
 import (
 	"fmt"
@@ -106,8 +129,11 @@ func main() {
 	f.Read(buf)
 	fmt.Println(string(buf))
 }
-`],
-  rust: ["main.rs", `use std::fs;
+`,
+  ],
+  rust: [
+    "main.rs",
+    `use std::fs;
 
 fn read_config(path: &str) -> String {
     fs::read_to_string(path).unwrap()
@@ -119,16 +145,22 @@ fn main() {
     println!("{}", items[idx]);
     println!("{}", read_config("config.toml"));
 }
-`],
-  php: ["login.php", `<?php
+`,
+  ],
+  php: [
+    "login.php",
+    `<?php
 $user = $_GET["user"];
 $db = new mysqli("localhost", "root", "", "app");
 $result = $db->query("SELECT * FROM users WHERE name = '$user'");
 while ($row = $result->fetch_assoc()) {
     echo "Hello " . $row["name"];
 }
-`],
-  ruby: ["report.rb", `def average(numbers)
+`,
+  ],
+  ruby: [
+    "report.rb",
+    `def average(numbers)
   numbers.sum / numbers.size
 end
 
@@ -137,8 +169,11 @@ def list(dir)
 end
 
 puts average([1, 2])
-`],
-  kotlin: ["Main.kt", `fun findUser(users: Map<String, String>, id: String): String {
+`,
+  ],
+  kotlin: [
+    "Main.kt",
+    `fun findUser(users: Map<String, String>, id: String): String {
     return users[id]!!
 }
 
@@ -146,5 +181,6 @@ fun main() {
     val users = mapOf("1" to "Ada")
     println(findUser(users, "2"))
 }
-`],
+`,
+  ],
 };

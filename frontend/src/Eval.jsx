@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { Masthead } from "./shell.jsx";
 import "./pages.css";
 
-const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
+const pct = x => (x == null ? "—" : `${Math.round(x * 100)}%`);
 
-const short = (name) => name.split("-").slice(0, 2).join("-"); // e.g. "qwen3.5-9b-instruct" -> "qwen3.5-9b"
-const name = (c) => c.title ?? c.file;
+const short = name => name.split("-").slice(0, 2).join("-"); // e.g. "qwen3.5-9b-instruct" -> "qwen3.5-9b"
+const name = c => c.title ?? c.file;
 
 // One bar: k picks the model's color index (.s0, .s1, etc.); failed draws a striped track
 const Bar = ({ k = 0, value = 0, max = 1, label, tip, failed }) => {
@@ -14,11 +14,7 @@ const Bar = ({ k = 0, value = 0, max = 1, label, tip, failed }) => {
   return (
     <div className="cbar" data-tip={tip} tabIndex={0}>
       <i className="ctrack">
-        {failed ? (
-          <span className="cfail" />
-        ) : (
-          <span className={`cfill s${k}`} style={{ width: `${fillWidth}%` }} />
-        )}
+        {failed ? <span className="cfail" /> : <span className={`cfill s${k}`} style={{ width: `${fillWidth}%` }} />}
       </i>
       <b>{label}</b>
     </div>
@@ -27,14 +23,10 @@ const Bar = ({ k = 0, value = 0, max = 1, label, tip, failed }) => {
 
 function Charts({ data }) {
   const ms = data.models || [];
-  const timed = ms.filter((m) => typeof m.avg_seconds === "number" && m.avg_seconds > 0);
+  const timed = ms.filter(m => typeof m.avg_seconds === "number" && m.avg_seconds > 0);
 
-  const fast = timed.length
-    ? timed.reduce((a, b) => (b.avg_seconds < a.avg_seconds ? b : a), timed[0])
-    : null;
-  const slow = timed.length
-    ? timed.reduce((a, b) => (b.avg_seconds > a.avg_seconds ? b : a), timed[0])
-    : null;
+  const fast = timed.length ? timed.reduce((a, b) => (b.avg_seconds < a.avg_seconds ? b : a), timed[0]) : null;
+  const slow = timed.length ? timed.reduce((a, b) => (b.avg_seconds > a.avg_seconds ? b : a), timed[0]) : null;
 
   const maxSpeed = slow ? slow.avg_seconds * 1.05 : 1;
 
@@ -58,11 +50,11 @@ function Charts({ data }) {
           </figcaption>
           {/* The two quality rows are hand scores from eval/rate.py; they appear once someone has rated. */}
           {[
-            ["Bugs caught", (m) => m.recall],
-            ["Explanation quality (rated by hand)", (m) => m.quality?.explanation],
-            ["Fix quality (rated by hand)", (m) => m.quality?.fix],
+            ["Bugs caught", m => m.recall],
+            ["Explanation quality (rated by hand)", m => m.quality?.explanation],
+            ["Fix quality (rated by hand)", m => m.quality?.fix],
           ]
-            .filter(([, get], n) => n === 0 || ms.some((m) => get(m) != null))
+            .filter(([, get], n) => n === 0 || ms.some(m => get(m) != null))
             .map(([label, get]) => (
               <div className="cgroup" key={label}>
                 <p>{label}</p>
@@ -150,7 +142,7 @@ function Charts({ data }) {
 }
 
 function Detail({ c, i, models }) {
-  const bugAt = new Map((c.bugs || []).map((b) => [b.line, b.label]));
+  const bugAt = new Map((c.bugs || []).map(b => [b.line, b.label]));
 
   return (
     <div className="eval-detail">
@@ -173,7 +165,7 @@ function Detail({ c, i, models }) {
         {(!c.bugs || !c.bugs.length) && <p className="eval-note">No known bugs in this file.</p>}
       </div>
 
-      {models.map((m) => {
+      {models.map(m => {
         const r = m.results?.[i] ?? {};
         return (
           <div key={m.name}>
@@ -205,7 +197,7 @@ function Detail({ c, i, models }) {
 }
 
 const FILES = ["eval-quixbugs.json", "eval-juliet.json", "eval.json"];
-const title = (data) => data.suite?.title ?? "Our test set";
+const title = data => data.suite?.title ?? "Our test set";
 
 function Suite({ data }) {
   const [open, setOpen] = useState(null);
@@ -234,7 +226,7 @@ function Suite({ data }) {
             <tr>
               <th>File</th>
               <th>Bugs</th>
-              {data.models.map((m) => (
+              {data.models.map(m => (
                 <th key={m.name}>{m.name}</th>
               ))}
             </tr>
@@ -253,14 +245,11 @@ function Suite({ data }) {
                   </button>
                 </td>
                 <td>{c.bugs?.length ?? 0}</td>
-                {data.models.map((m) => {
+                {data.models.map(m => {
                   const r = m.results?.[i] ?? {};
                   const total = c.bugs?.length ?? 0;
                   return (
-                    <td
-                      key={m.name}
-                      title={r.missed?.length ? `Missed: ${r.missed.join(", ")}` : undefined}
-                    >
+                    <td key={m.name} title={r.missed?.length ? `Missed: ${r.missed.join(", ")}` : undefined}>
                       {r.error ? "failed" : `${r.caught}/${total} caught · ${r.seconds}s`}
                     </td>
                   );
@@ -283,10 +272,12 @@ export default function Eval() {
 
   useEffect(() => {
     Promise.all(
-      FILES.map((f) =>
-        fetch("/" + f).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      )
-    ).then((all) => setSuites(all.filter(Boolean)));
+      FILES.map(f =>
+        fetch("/" + f)
+          .then(r => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ),
+    ).then(all => setSuites(all.filter(Boolean)));
   }, []);
 
   return (
@@ -313,13 +304,7 @@ export default function Eval() {
               {suites.length > 1 && (
                 <div className="eval-tabs" role="tablist">
                   {suites.map((d, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      role="tab"
-                      aria-selected={tab === i}
-                      onClick={() => setTab(i)}
-                    >
+                    <button key={i} type="button" role="tab" aria-selected={tab === i} onClick={() => setTab(i)}>
                       {title(d)}
                     </button>
                   ))}

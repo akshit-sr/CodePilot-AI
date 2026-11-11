@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ClerkProvider, useAuth } from "@clerk/react";
-import Landing from "./Landing.jsx";
+import Landing from "./landing/Landing.jsx";
 import Auth from "./Auth.jsx";
 import Workspace from "./Workspace.jsx";
 import Eval from "./Eval.jsx";
@@ -13,10 +13,13 @@ import "./styles.css";
 function Root() {
   const [route, setRoute] = useState(location.hash);
   const { isLoaded, isSignedIn } = useAuth();
-  const form = useRef(null);   // "signin" | "signup" | null; kept while Clerk is on one of its "#/…" steps
+  const form = useRef(null); // "signin" | "signup" | null; kept while Clerk is on one of its "#/…" steps
 
   useEffect(() => {
-    const onChange = () => { setRoute(location.hash); scrollTo(0, 0); };
+    const onChange = () => {
+      setRoute(location.hash);
+      scrollTo(0, 0);
+    };
     addEventListener("hashchange", onChange);
     return () => removeEventListener("hashchange", onChange);
   }, []);
@@ -25,7 +28,8 @@ function Root() {
   if (route === "#eval") return <Eval />;
 
   if (route === "#signin" || route === "#signup") form.current = route.slice(1);
-  else if (route === "#review") form.current = "signin";   // signed out: sign in first
+  else if (route === "#review")
+    form.current = "signin"; // signed out: sign in first
   else if (!route.startsWith("#/")) form.current = null;
 
   return form.current ? <Auth key={form.current} mode={form.current} /> : <Landing />;
@@ -42,13 +46,15 @@ const navigate = replace => to => {
 const root = import.meta.hot?.data.root || createRoot(document.getElementById("root"));
 if (import.meta.hot) import.meta.hot.data.root = root;
 
-root.render(<React.StrictMode>
-  <ClerkProvider
-    publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
-    afterSignOutUrl="/#"
-    routerPush={navigate(false)}
-    routerReplace={navigate(true)}
-  >
-    <Root />
-  </ClerkProvider>
-</React.StrictMode>);
+root.render(
+  <React.StrictMode>
+    <ClerkProvider
+      publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
+      afterSignOutUrl="/#"
+      routerPush={navigate(false)}
+      routerReplace={navigate(true)}
+    >
+      <Root />
+    </ClerkProvider>
+  </React.StrictMode>,
+);
