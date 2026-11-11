@@ -69,6 +69,7 @@ export default function Auth({ mode }) {
               appearance={appearance}
               signInUrl="/#signin"
               fallbackRedirectUrl="/#review"
+              signUpFallbackRedirectUrl="/#review"
             />
           </div>
         </div>
