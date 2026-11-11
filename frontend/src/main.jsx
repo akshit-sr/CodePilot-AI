@@ -31,6 +31,7 @@ function Root() {
   else if (route === "#review")
     form.current = "signin"; // signed out: sign in first
   else if (!route.startsWith("#/")) form.current = null;
+  else form.current ??= "signin"; // a fresh load on one of Clerk's steps, e.g. back from Google at #/sso-callback
 
   return form.current ? <Auth key={form.current} mode={form.current} /> : <Landing />;
 }
