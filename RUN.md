@@ -47,7 +47,8 @@ Every deploy:
 cd worker; bun run deploy    # builds the site, then uploads the Worker
 ```
 
-The site is then at `https://codepilot.<your-subdomain>.workers.dev`.
+The site is then at `https://codepilot.in.net` (the custom domain set in `worker/wrangler.toml`) and at
+`https://codepilot.<your-subdomain>.workers.dev`.
 Wrangler asks you to pick the subdomain on the first deploy.
 
 When the Qwen tunnel URL changes, edit `MODEL_URL` in `worker/wrangler.toml`

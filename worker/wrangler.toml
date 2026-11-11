@@ -2,6 +2,9 @@ name = "codepilot"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
+# Serve the site on our own domain as well as the workers.dev address.
+routes = [{ pattern = "codepilot.in.net", custom_domain = true }]
+
 # The built React app (`npm run build` at the repo root) is served as static files.
 [assets]
 directory = "../frontend/dist"
