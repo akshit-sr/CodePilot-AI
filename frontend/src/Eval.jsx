@@ -29,6 +29,8 @@ function Charts({ data }) {
   const slow = timed.length ? timed.reduce((a, b) => (b.avg_seconds > a.avg_seconds ? b : a), timed[0]) : null;
 
   const maxSpeed = slow ? slow.avg_seconds * 1.05 : 1;
+  // Who scored the explanations and fixes: a person running rate.py, or an AI model.
+  const rater = ms.find(m => m.quality?.rated_by)?.quality.rated_by ?? "hand";
 
   return (
     <div className="eval-charts">
@@ -48,11 +50,11 @@ function Charts({ data }) {
           <figcaption>
             Accuracy<span>higher is better</span>
           </figcaption>
-          {/* The two quality rows are hand scores from eval/rate.py; they appear once someone has rated. */}
+          {/* The two quality rows are rubric scores (eval/rate.py); they appear once someone has rated, and say who. */}
           {[
             ["Bugs caught", m => m.recall],
-            ["Explanation quality (rated by hand)", m => m.quality?.explanation],
-            ["Fix quality (rated by hand)", m => m.quality?.fix],
+            [`Explanation quality (rated by ${rater})`, m => m.quality?.explanation],
+            [`Fix quality (rated by ${rater})`, m => m.quality?.fix],
           ]
             .filter(([, get], n) => n === 0 || ms.some(m => get(m) != null))
             .map(([label, get]) => (

@@ -118,21 +118,24 @@
               "severity": "high",
               "type": "SQL injection",
               "explanation": "The query is constructed using an f-string, which directly interpolates the user-provided 'uid' variable into the SQL string without escaping or parameterization.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 10,
               "severity": "medium",
               "type": "Sensitive data in logs",
               "explanation": "The password ('pw') is printed to standard output, which may expose sensitive credentials in log files or console output.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 5,
               "severity": "medium",
               "type": "Potential IndexError",
               "explanation": "If no user is found with the given 'uid', `fetchone()` returns `None`. Accessing `row[2]` on the next line will raise an `IndexError` (or `TypeError` if checking `row[2]` on `None` directly, though `None[2]` is `TypeError`).",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -147,21 +150,24 @@
               "severity": "high",
               "type": "Off-by-one error",
               "explanation": "The loop condition `i <= items.length` causes the loop to iterate one time too many, accessing `items[items.length]` which is `undefined`. This leads to a `TypeError` when trying to access `.price`.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 8,
               "severity": "medium",
               "type": "Loose equality comparison",
               "explanation": "Using `==` to compare a number (`sum`) with a string (`\"0\"`) relies on type coercion. While it works in this specific case, it is generally considered a source of bugs and less readable than strict equality.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 1,
               "severity": "low",
               "type": "Global variable",
               "explanation": "The variable `discount` is declared with `var` in the global scope, which can lead to namespace pollution and unexpected side effects if other scripts modify it.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -176,21 +182,24 @@
               "severity": "high",
               "type": "Buffer overflow",
               "explanation": "strcpy copies the input string into a fixed-size buffer of 16 bytes without checking the length. If 'name' is longer than 14 characters (leaving room for the null terminator and the subsequent '!' from strcat), it will overflow the buffer.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 9,
               "severity": "critical",
               "type": "Format string vulnerability",
               "explanation": "printf is called with 'buf' as the format string. If the input contains format specifiers (e.g., %s, %x), it can read from the stack or cause a crash. This is a classic format string vulnerability.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 13,
               "severity": "medium",
               "type": "Null pointer dereference",
               "explanation": "The code accesses argv[1] without checking if argc is greater than 1. If the program is run without a command-line argument, argv[1] will be NULL, causing a crash when passed to greet.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -212,21 +221,24 @@
               "severity": "high",
               "type": "Integer division",
               "explanation": "Dividing two integers (sum and xs.size()) results in integer division, truncating the decimal part before returning a double.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 11,
               "severity": "medium",
               "type": "Null pointer exception",
               "explanation": "If the list contains a null element, calling trim() on it will throw a NullPointerException.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 11,
               "severity": "medium",
               "type": "Index out of bounds",
               "explanation": "If the list is empty, calling get(0) will throw an IndexOutOfBoundsException.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -241,35 +253,40 @@
               "severity": "high",
               "type": "Unchecked error",
               "explanation": "The error returned by os.Open is ignored. If the file does not exist or cannot be opened, f will be nil, leading to a nil pointer dereference on line 11.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 11,
               "severity": "high",
               "type": "Unchecked error",
               "explanation": "The error returned by f.Read is ignored. If the read fails, the buffer may contain partial or stale data, and the program will not report the failure.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 9,
               "severity": "medium",
               "type": "Resource leak",
               "explanation": "The file handle is never closed. This can lead to resource exhaustion if the program is run frequently or in a long-running context.",
-              "real": true
+              "real": true,
+              "explanation_score": 1
             },
             {
               "line": 11,
               "severity": "medium",
               "type": "Incomplete read",
               "explanation": "A single Read call does not guarantee that the entire file is read, especially for files larger than the buffer size (100 bytes). The program will only print the first 100 bytes.",
-              "real": true
+              "real": true,
+              "explanation_score": 1
             },
             {
               "line": 12,
               "severity": "low",
               "type": "Trailing newline",
               "explanation": "fmt.Println adds a trailing newline, which may not be present in the original file. This alters the output compared to the standard cat command.",
-              "real": true
+              "real": true,
+              "explanation_score": 1
             }
           ]
         },
@@ -295,7 +312,13 @@
             }
           ]
         }
-      ]
+      ],
+      "quality": {
+        "rated": 17,
+        "explanation": 0.9117647058823529,
+        "fix": null,
+        "rated_by": "Claude (AI model)"
+      }
     },
     {
       "name": "qwen3.5-9b",
@@ -317,21 +340,24 @@
               "severity": "critical",
               "type": "SQL Injection",
               "explanation": "The code uses string formatting (f-string) to construct a SQL query directly from user input (`uid`). This allows an attacker to inject arbitrary SQL commands, potentially bypassing authentication or accessing unauthorized data.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 7,
               "severity": "medium",
               "type": "Hardcoded Column Index",
               "explanation": "The code accesses the password column using a hardcoded index (`row[2]`). If the database schema changes (e.g., adding a new column), this will break or access the wrong data. It is better to use column names.",
-              "real": true
+              "real": true,
+              "explanation_score": 1
             },
             {
               "line": 5,
               "severity": "low",
               "type": "Missing Exception Handling",
               "explanation": "The `db.execute()` method can raise exceptions (e.g., `sqlite3.Error`, `sqlite3.OperationalError`) if the database connection is lost or the query is invalid. These are not caught, which may cause the application to crash silently or expose error details to users.",
-              "real": true
+              "real": true,
+              "explanation_score": 1
             }
           ]
         },
@@ -350,28 +376,32 @@
               "severity": "critical",
               "type": "Buffer Overflow",
               "explanation": "The function uses `strcpy` to copy the input `name` into a fixed-size buffer `buf` of 16 bytes. If `name` is 16 or more characters long, this will cause a buffer overflow, leading to undefined behavior, potential crashes, or security vulnerabilities.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 7,
               "severity": "critical",
               "type": "Buffer Overflow",
               "explanation": "The function uses `strcat` to append \"!\" to the buffer. Since the buffer size is fixed at 16 bytes and the previous operation might have filled it (or nearly filled it), adding another character without checking bounds can cause a buffer overflow if the buffer wasn't properly sized or if the previous copy was unsafe.",
-              "real": true
+              "real": true,
+              "explanation_score": 1
             },
             {
               "line": 9,
               "severity": "high",
               "type": "Format String Vulnerability",
               "explanation": "The `printf` function is called with `buf` as the format string argument. If `buf` contains format specifiers (e.g., \"%s\", \"%d\"), they will be interpreted by `printf`, potentially leading to information disclosure or arbitrary code execution if the buffer contents are controlled by an attacker.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 13,
               "severity": "medium",
               "type": "Potential Crash",
               "explanation": "The `main` function accesses `argv[1]` without checking if it exists. If the program is run without arguments, `argv[1]` is undefined behavior, which can lead to a crash or security issues.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -393,14 +423,16 @@
               "severity": "high",
               "type": "IndexOutOfBoundsException",
               "explanation": "The method accesses the first element of the list using 'names.get(0)' without checking if the list is empty. If the list is empty, this will throw an IndexOutOfBoundsException.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 7,
               "severity": "medium",
               "type": "Division by Zero",
               "explanation": "The method calculates the average by dividing the sum by 'xs.size()'. If the input list is empty, 'xs.size()' will be 0, resulting in a division by zero exception.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -415,28 +447,32 @@
               "severity": "high",
               "type": "Uninitialized variable",
               "explanation": "The variable 'buf' is declared but not initialized before being passed to 'f.Read'. While 'make' initializes the slice, the code logic suggests a potential issue if the intent was to use a pre-existing buffer or if the slice capacity/length handling is misunderstood. More critically, 'f.Read' returns an error which is ignored, potentially leading to silent failures or undefined behavior if the read fails.",
-              "real": true
+              "real": true,
+              "explanation_score": 0
             },
             {
               "line": 9,
               "severity": "high",
               "type": "Ignored error",
               "explanation": "The error returned by 'os.Open' is ignored using the blank identifier '_'. If the file does not exist or cannot be opened, the program will proceed with a nil file handle, causing a panic on the next read operation.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 11,
               "severity": "high",
               "type": "Ignored error",
               "explanation": "The error returned by 'f.Read' is ignored. This means if the read operation fails (e.g., due to I/O errors, EOF, or permission issues), the program will continue as if the read was successful, potentially printing partial or corrupted data.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             },
             {
               "line": 9,
               "severity": "medium",
               "type": "Potential panic",
               "explanation": "If 'os.Args[1]' does not exist (i.e., the program is run without arguments), accessing 'os.Args[1]' will cause a panic because the index is out of range.",
-              "real": true
+              "real": true,
+              "explanation_score": 2
             }
           ]
         },
@@ -447,7 +483,13 @@
           "seconds": 20.5,
           "findings": []
         }
-      ]
+      ],
+      "quality": {
+        "rated": 13,
+        "explanation": 0.8076923076923077,
+        "fix": null,
+        "rated_by": "Claude (AI model)"
+      }
     }
   ]
 }

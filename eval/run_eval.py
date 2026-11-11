@@ -96,8 +96,8 @@ LANGUAGE_NAMES = {"python": "Python", "javascript": "JavaScript", "c": "C", "jav
 def prompt(code, language, filename):
     numbered = "\n".join(f"{i}| {line}" for i, line in enumerate(code.split("\n"), 1))
     return f"""Review this {LANGUAGE_NAMES[language]} source file ({filename}). Return only valid JSON matching this schema:
-{{"findings":[{{"type":"string","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}}],"improved_code":"string or null"}}
-Report actionable problems: bugs and logical errors, security issues, inefficient code, poor coding practices, readability problems, unnecessary or repeated code, and unhandled edge cases. "type" is a short title for the problem, e.g. "SQL injection".
+{{"findings":[{{"type":"string","category":"bug|security|performance|practice|readability|duplication|edge_case","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}}],"improved_code":"string or null"}}
+Report actionable problems: bugs and logical errors, security issues, inefficient code, poor coding practices, readability problems, unnecessary or repeated code, and unhandled edge cases. "type" is a short title for the problem, e.g. "SQL injection". "category" is the kind of problem: bug (bugs and logical errors), security, performance (inefficient code), practice (poor coding practices), readability, duplication (unnecessary or repeated code) or edge_case (unhandled edge cases).
 Each source line below starts with its line number and "| "; use that number for "line". The numbers are not part of the code: leave them out of improved_code.
 Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
 
@@ -127,7 +127,7 @@ def review(url, model, key, case, timeout):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, body, headers), timeout=timeout) as r:
             content = json.load(r)["choices"][0]["message"]["content"]
-        return [{"line": int(f["line"]), "severity": str(f.get("severity", "")), "type": str(f.get("type", "")),
+        return [{"line": int(f["line"]), "severity": str(f.get("severity", "")), "type": str(f.get("type", "")), "category": str(f.get("category", "")),
                  "explanation": str(f.get("explanation", "")), "suggested_fix": str(f.get("suggested_fix", ""))} for f in json.loads(content)["findings"]]
     except Exception as e:
         print(f"  {case['file']}: failed ({e})")

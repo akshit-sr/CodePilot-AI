@@ -9,6 +9,18 @@ The React frontend uses tree-sitter to check syntax before submitting a review.
 A Cloudflare Worker serves the built site and the API, verifies Clerk sessions,
 and calls a Qwen endpoint. Supabase stores review history and tracks usage.
 
+## How it differs from the synopsis
+
+The project synopsis lists Python, FastAPI and Docker for the application. What was built instead:
+
+- **Backend:** TypeScript on a Cloudflare Worker (Hono), not Python and FastAPI. One Worker serves both the
+  site and the API, which let the project be hosted for free with no server to run.
+- **Python:** used for the evaluation scripts in `eval/`.
+- **Tree-sitter:** runs in the browser as WebAssembly, so syntax is checked before a review is spent.
+- **Docker:** runs the backup model (`compose.yaml`), not the application itself.
+
+PostgreSQL (through Supabase), React and the LLM API are as the synopsis describes.
+
 ## Run locally on Windows
 
 Install Git, Node.js 22.12 or newer, and Bun. In PowerShell, run each command
@@ -97,7 +109,7 @@ UTF-8 bytes, an optional `language` (default `python`), and an optional
 { "code": "print('ok')", "language": "python", "filename": "main.py" }
 ```
 
-Each review finding includes a type, severity, 1-based line and column,
+Each review finding includes a type, a category (bug, security, performance, practice, readability, duplication, edge_case, or other), severity, 1-based line and column,
 explanation, and suggested fix.
 
 Errors use the JSON shape `{"detail":"<code>"}`.

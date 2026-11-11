@@ -1,4 +1,4 @@
-import { humanize } from "../review.js";
+import { CATEGORY_LABELS, humanize } from "../review.js";
 
 // One margin note. Its `top` is set by Workspace so it sits beside its line.
 export function Note({ note, index, active, onHover, onOpen }) {
@@ -16,6 +16,7 @@ export function Note({ note, index, active, onHover, onOpen }) {
       <span className="note-meta">
         <span className="num">{note.n}</span>
         {note.severity}
+        {CATEGORY_LABELS[note.category] && <span className="kind">{CATEGORY_LABELS[note.category]}</span>}
         <span className="where">line {note.line}</span>
       </span>
       <b>{humanize(note.type)}</b>

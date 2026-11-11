@@ -1,10 +1,10 @@
 // The review itself and everything it needs from the server: running a review, reopening or deleting
 // a past one, plus what the page shows about the server (languages, today's quota, history).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import parserRuntime from "web-tree-sitter/web-tree-sitter.wasm?url";
 import { useApi } from "../api.js";
 import { syntaxChecker } from "../syntax.js";
-import { ERRORS, FALLBACK_LANGUAGES, LIMIT, prepare, toNotes } from "../review.js";
+import { ERRORS, FALLBACK_LANGUAGES, LIMIT, prepare, renameFor, toNotes } from "../review.js";
 
 const syntax = syntaxChecker(lang => `/grammars/${lang}.wasm`, parserRuntime);
 
@@ -48,6 +48,26 @@ export function useReview(draft, onStart) {
       .then(h => Array.isArray(h) && setHistory(h))
       .catch(() => {});
   }
+
+  // Detect the language of pasted code. When a sizeable chunk lands on an empty sheet and it doesn't parse as the
+  // selected language but does parse as another, switch to that one. Typing never triggers this.
+  const wasEmpty = useRef(!code.trim());
+  useEffect(() => {
+    const pasted = wasEmpty.current && code.trim().length > 40;
+    wasEmpty.current = !code.trim();
+    if (!pasted) return;
+    let outdated = false;
+    (async () => {
+      if (!(await syntax.hasError(code, language).catch(() => false))) return;
+      const detected = await syntax.detect(code, language).catch(() => null);
+      if (!detected || outdated) return;
+      draft.setLanguage(detected);
+      draft.setFilename(renameFor(filename, detected)); // untitled.py -> untitled.js
+    })();
+    return () => {
+      outdated = true;
+    };
+  }, [code]);
 
   // Put new code on the sheet, dropping the old review.
   function load(text, name, lang) {

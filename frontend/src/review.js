@@ -79,6 +79,17 @@ export const MOD_KEY = /Mac|iPhone|iPad/.test(globalThis.navigator?.userAgent) ?
 // "sql_injection" -> "Sql injection"
 export const humanize = type => (type || "finding").replace(/[_-]+/g, " ").replace(/^./, c => c.toUpperCase());
 
+// The kinds of problem the reviewer files a finding under (set by the Worker), with the label shown on a note.
+export const CATEGORY_LABELS = {
+  bug: "Bug",
+  security: "Security",
+  performance: "Performance",
+  practice: "Coding practice",
+  readability: "Readability",
+  duplication: "Repeated code",
+  edge_case: "Edge case",
+};
+
 // "main.py" -> "python", or undefined for an unknown extension.
 export const languageFor = filename => EXT[filename.split(".").pop().toLowerCase()];
 

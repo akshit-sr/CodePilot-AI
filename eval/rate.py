@@ -52,7 +52,7 @@ def main():
     except (KeyboardInterrupt, EOFError):
         print("\nStopped.")
     for m in data["models"]:
-        m["quality"] = quality([f for r in m["results"] for f in r.get("findings", [])])
+        m["quality"] = {"rated_by": m.get("quality", {}).get("rated_by", "hand")} | quality([f for r in m["results"] for f in r.get("findings", [])])
         print(f"{m['name']}: {m['quality']}")
     path.write_text(json.dumps(data, indent=2))
 

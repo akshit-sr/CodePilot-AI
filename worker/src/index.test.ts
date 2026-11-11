@@ -210,13 +210,36 @@ test("findings are passed through, extra keys dropped, numeric strings accepted"
       JSON.stringify({
         findings: [
           { type: "bug", severity: "high", line: "3", column: 1, explanation: "x", suggested_fix: "y", extra: 1 },
+          {
+            type: "t",
+            category: "security",
+            severity: "low",
+            line: 1,
+            column: 1,
+            explanation: "x",
+            suggested_fix: "y",
+          },
+          {
+            type: "t",
+            category: "nonsense",
+            severity: "low",
+            line: 1,
+            column: 1,
+            explanation: "x",
+            suggested_fix: "y",
+          },
         ],
         improved_code: "z",
       }),
     ),
   );
   expect(await (await review({ code: "x = 1" })).json()).toMatchObject({
-    findings: [{ type: "bug", severity: "high", line: 3, column: 1, explanation: "x", suggested_fix: "y" }],
+    // A listed category is kept; a missing or unknown one becomes "other".
+    findings: [
+      { type: "bug", category: "other", severity: "high", line: 3, column: 1, explanation: "x", suggested_fix: "y" },
+      { category: "security" },
+      { category: "other" },
+    ],
     improved_code: "z",
   });
 });
