@@ -124,6 +124,13 @@ export default function Landing() {
             </a>
           </div>
         </section>
+
+        <footer className="lp-foot">
+          <p>Project by Akshit Srivastava, Akshat Mishra, and Harsh Raj</p>
+          <a className="lp-link" href="/privacy.html">
+            Privacy policy
+          </a>
+        </footer>
       </main>
     </>
   );

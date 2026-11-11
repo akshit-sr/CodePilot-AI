@@ -11,14 +11,14 @@ directory = "../frontend/dist"
 
 [vars]
 # Your Qwen endpoint. When the tunnel URL changes: edit this line, then run `bun run deploy`.
-MODEL_URL = "https://voltage-reducing-condo-steering.trycloudflare.com/v1/chat/completions"
+MODEL_URL = "https://proportion-kings-dig-distributor.trycloudflare.com/v1/chat/completions"
 MODEL_NAME = "qwen3.8-27b-uncensored-mtp:latest"
 MODEL_TIMEOUT_MS = "120000"
 # The backup runs on the CPU and is much slower, so it gets longer before the Worker gives up (10 minutes).
 FALLBACK_MODEL_TIMEOUT_MS = "600000"
 # Backup model, tried when the one above fails: the Docker model's tunnel URL (see RUN.md) + /v1/chat/completions.
 # Leave empty for no backup. It changes each time the tunnel restarts: edit, then `bun run deploy`.
-FALLBACK_MODEL_URL = "https://act-dod-asbestos-since.trycloudflare.com/v1/chat/completions"
+FALLBACK_MODEL_URL = "https://blvd-wind-urls-momentum.trycloudflare.com/v1/chat/completions"
 FALLBACK_MODEL_NAME = "qwen3.5:9b"
 # Your Supabase project URL (Project Settings -> API), e.g. https://abcdefgh.supabase.co
 SUPABASE_URL = "https://kznbombadogwizvsruep.supabase.co"

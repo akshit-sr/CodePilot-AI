@@ -878,6 +878,14 @@ html.lp main.landing {
   opacity: 1;
   visibility: visible;
 }
+.lp-foot {
+  padding: 0 20px 48px;
+  text-align: center;
+}
+.lp-foot p {
+  margin: 0 0 10px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lp * {
     transition: none !important;
