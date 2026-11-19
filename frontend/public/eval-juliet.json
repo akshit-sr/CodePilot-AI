@@ -4,8 +4,9 @@
     "description": "10 test cases from the NIST Juliet Test Suite for Java 1.3 (Software Assurance Reference Dataset, samate.nist.gov), one per weakness type (CWE), in its simplest form. Comments, names and other hints that reveal the flaw were removed before review.",
     "source": "https://samate.nist.gov/SARD/test-suites/111"
   },
-  "generated_at": "2026-11-10T10:59:49.852870+00:00",
+  "generated_at": "2026-11-19T08:18:05.345612+00:00",
   "tolerance": 1,
+  "line_numbers": true,
   "total_bugs": 10,
   "cases": [
     {
@@ -157,40 +158,116 @@
   ],
   "models": [
     {
-      "name": "qwen3.8-27b",
+      "name": "qwen3.8-27b-uncensored-mtp:latest",
       "recall": 1.0,
-      "precision": 0.6818181818181818,
-      "avg_seconds": 26.3,
+      "precision": 0.5,
+      "precision_unique": 0.29411764705882354,
+      "avg_seconds": 39.0,
       "failures": 0,
       "results": [
         {
           "caught": 1,
           "extra": 1,
           "missed": [],
-          "seconds": 36.7,
+          "seconds": 75.4,
           "findings": [
             {
               "line": 17,
               "severity": "high",
               "type": "SQL Injection",
-              "explanation": "The variable 'data' is retrieved from an environment variable and concatenated directly into the SQL query string without sanitization or parameterization. This allows an attacker who controls the environment variable to inject arbitrary SQL.",
-              "real": true,
-              "explanation_score": 2
+              "category": "security",
+              "explanation": "The variable 'data' is directly concatenated into the SQL query string without sanitization or parameterization, allowing an attacker to inject arbitrary SQL code via the 'ADD' environment variable.",
+              "suggested_fix": "Use a PreparedStatement with a placeholder for the 'name' value: `PreparedStatement ps = dbConnection.prepareStatement(\"insert into users (status) values ('updated') where name=?\"); ps.setString(1, data); int rowCount = ps.executeUpdate();`",
+              "real": true
             },
             {
               "line": 17,
               "severity": "medium",
-              "type": "Null Pointer Exception",
-              "explanation": "The variable 'data' is obtained from System.getenv(\"ADD\"). If the environment variable is not set, 'data' will be null. Concatenating null into the string results in the literal string \"null\", which may not be the intended behavior and could lead to unexpected database entries or logic errors.",
-              "real": true,
-              "explanation_score": 1
+              "type": "Incorrect SQL Statement Type",
+              "category": "bug",
+              "explanation": "The query is an `INSERT` statement, but `executeUpdate` is used on a `Statement` object. While `executeUpdate` works for INSERT, the logic implies an update of existing rows (based on the 'where' clause and log message), which is semantically confusing for an INSERT. More critically, if the intent was to update existing rows, `executeUpdate` is correct, but the SQL syntax `insert into ... where` is non-standard and likely incorrect for most databases (INSERT usually doesn't have a WHERE clause unless it's a specific dialect like MySQL's INSERT ... ON DUPLICATE KEY or similar, but standard SQL INSERT doesn't filter by WHERE). If it's meant to be an UPDATE, the SQL is wrong. If it's an INSERT, the WHERE clause is likely a bug or unsupported.",
+              "suggested_fix": "If updating existing rows, change to `UPDATE users SET status='updated' WHERE name=?`. If inserting, remove the WHERE clause or use appropriate INSERT syntax.",
+              "real": true
             },
             {
-              "line": 22,
+              "line": 17,
+              "severity": "medium",
+              "type": "Null Pointer Exception Risk",
+              "category": "edge_case",
+              "explanation": "The variable 'data' is obtained from `System.getenv(\"ADD\")`. If the environment variable is not set, 'data' will be null. Concatenating null into the string results in the string \"null\", which might be intended, but if the code expects a valid name, it could lead to unexpected database behavior. More importantly, if `IO.getDBConnection()` returns null, `dbConnection.createStatement()` on line 16 will throw a NullPointerException, which is not caught by the `catch (SQLException ...)` block.",
+              "suggested_fix": "Check if 'data' is null and handle it appropriately. Ensure `IO.getDBConnection()` does not return null or add a null check for `dbConnection` before use.",
+              "real": true
+            },
+            {
+              "line": 11,
               "severity": "low",
-              "type": "Misleading Log Message",
-              "explanation": "The catch block for SQLException logs the message \"Error getting database connection\", but the exception could also originate from createStatement() or executeUpdate(). This makes debugging difficult.",
+              "type": "Resource Management",
+              "category": "practice",
+              "explanation": "The code uses manual resource management with try-finally blocks. While correct, it is verbose and error-prone. Using try-with-resources (Java 7+) would be cleaner and less prone to errors.",
+              "suggested_fix": "Use try-with-resources: `try (Connection dbConnection = IO.getDBConnection(); Statement sqlStatement = dbConnection.createStatement()) { ... }`",
+              "real": true
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "Wildcard Import",
+              "category": "readability",
+              "explanation": "Wildcard imports (`javax.servlet.http.*`, `java.sql.*`) can lead to naming conflicts and make it harder to determine which classes are being used.",
+              "suggested_fix": "Import specific classes instead of using wildcards.",
               "real": false
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 2,
+          "missed": [],
+          "seconds": 50.6,
+          "findings": [
+            {
+              "line": 3,
+              "severity": "high",
+              "type": "Class name mismatch",
+              "category": "bug",
+              "explanation": "The file is named Case02.java, but the public class is named Example. In Java, a public class must have the same name as its file.",
+              "suggested_fix": "Rename the class to Case02 or rename the file to Example.java.",
+              "real": false
+            },
+            {
+              "line": 18,
+              "severity": "critical",
+              "type": "Command injection",
+              "category": "security",
+              "explanation": "The variable 'data' comes from an environment variable and is concatenated directly into the command string without sanitization. An attacker controlling the environment variable could inject arbitrary commands.",
+              "suggested_fix": "Use ProcessBuilder with a list of arguments to avoid shell interpretation, or validate/sanitize the input.",
+              "real": true
+            },
+            {
+              "line": 8,
+              "severity": "medium",
+              "type": "Null pointer exception",
+              "category": "edge_case",
+              "explanation": "System.getenv(\"ADD\") can return null if the environment variable is not set. Concatenating null with a string results in the string \"null\", which might not be the intended behavior, or if used in other contexts, could cause issues. More critically, if the code expected a non-null value, it should check for it.",
+              "suggested_fix": "Check if data is null before using it, or provide a default value.",
+              "real": true
+            },
+            {
+              "line": 12,
+              "severity": "low",
+              "type": "Hardcoded paths",
+              "category": "practice",
+              "explanation": "The path to cmd.exe is hardcoded. While common, it's better to use the system property or rely on the PATH environment variable if possible, or at least make it configurable.",
+              "suggested_fix": "Consider using \"cmd.exe\" and relying on the system PATH, or use a configuration property.",
+              "real": false
+            },
+            {
+              "line": 18,
+              "severity": "low",
+              "type": "Inefficient string concatenation",
+              "category": "performance",
+              "explanation": "String concatenation using + is fine for simple cases, but using StringBuilder or ProcessBuilder is often cleaner and more efficient for complex commands.",
+              "suggested_fix": "Use ProcessBuilder with a list of arguments.",
+              "real": true
             }
           ]
         },
@@ -198,76 +275,77 @@
           "caught": 1,
           "extra": 1,
           "missed": [],
-          "seconds": 54.7,
-          "findings": [
-            {
-              "line": 18,
-              "severity": "high",
-              "type": "Command Injection",
-              "explanation": "The variable 'data' is retrieved from an environment variable and concatenated directly into the OS command string without sanitization. An attacker controlling the 'ADD' environment variable could inject arbitrary commands.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 10,
-              "severity": "medium",
-              "type": "Potential NullPointerException",
-              "explanation": "System.getProperty(\"os.name\") can return null if the property is not set, which would cause a NullPointerException when .toLowerCase() is called.",
-              "real": false
-            },
-            {
-              "line": 18,
-              "severity": "medium",
-              "type": "Potential NullPointerException",
-              "explanation": "System.getenv(\"ADD\") can return null if the environment variable is not set. Concatenating null results in the string \"null\" being appended to the command, which may not be the intended behavior.",
-              "real": true,
-              "explanation_score": 1
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 14.7,
+          "seconds": 23.4,
           "findings": [
             {
               "line": 11,
               "severity": "high",
               "type": "XSS",
-              "explanation": "The variable 'data' is retrieved directly from the HTTP request parameter 'name' and concatenated into the HTML response without escaping. If an attacker passes a script tag (e.g., <script>alert(1)</script>), it will be executed in the user's browser.",
-              "real": true,
-              "explanation_score": 2
+              "category": "security",
+              "explanation": "The variable 'data' is retrieved from user input via request.getParameter and directly concatenated into an HTML string without escaping. This allows an attacker to inject arbitrary HTML or JavaScript (e.g., <script>alert('xss')</script>).",
+              "suggested_fix": "Use an HTML escaping library (like OWASP Encoder) to escape the data before output, e.g., `Encoder.forHtml(data)`.",
+              "real": true
+            },
+            {
+              "line": 3,
+              "severity": "low",
+              "type": "Class name mismatch",
+              "category": "practice",
+              "explanation": "The file is named Case03.java but the class is named Example. In Java, the public class name must match the file name.",
+              "suggested_fix": "Rename the class to Case03 or rename the file to Example.java.",
+              "real": false
             }
           ]
         },
         {
           "caught": 1,
-          "extra": 1,
+          "extra": 4,
           "missed": [],
-          "seconds": 36.0,
+          "seconds": 62.1,
           "findings": [
+            {
+              "line": 30,
+              "severity": "medium",
+              "type": "Resource leak on exception",
+              "category": "bug",
+              "explanation": "If an exception is thrown during the creation of InputStreamReader or BufferedReader (lines 31-32), the previously opened FileInputStream (line 30) is not closed because the finally block only closes resources that are not null, but the FileInputStream variable is assigned while the others are still null. However, the main issue is that if `new InputStreamReader` throws, `streamFileInputSink` is not closed. More critically, the code uses manual resource management instead of try-with-resources, which is error-prone.",
+              "suggested_fix": "Use try-with-resources statement to automatically close resources.",
+              "real": false
+            },
             {
               "line": 22,
               "severity": "high",
-              "type": "Path Traversal",
-              "explanation": "The variable 'data' is retrieved from the environment variable 'ADD' and concatenated directly to the root path without sanitization. An attacker could set 'ADD' to a value like '../../etc/passwd' to read files outside the intended directory.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 23,
-              "severity": "medium",
-              "type": "Resource Leak",
-              "explanation": "The code manually manages the closing of multiple streams (FileInputStream, InputStreamReader, BufferedReader) in a finally block. While the current logic attempts to close them, using try-with-resources is less error-prone and ensures proper closure even if exceptions occur during stream creation.",
-              "real": true,
-              "explanation_score": 1
+              "type": "Path traversal vulnerability",
+              "category": "security",
+              "explanation": "The variable `data` comes from an environment variable and is concatenated directly to the root path without sanitization. An attacker could set the environment variable to `../../etc/passwd` to read arbitrary files.",
+              "suggested_fix": "Normalize the path and ensure it starts with the root directory, or use `File.getCanonicalPath()` to check the prefix.",
+              "real": true
             },
             {
               "line": 14,
               "severity": "low",
-              "type": "Hardcoded Path",
-              "explanation": "The upload directory paths are hardcoded. This makes the application less portable and harder to configure for different environments.",
+              "type": "Hardcoded file paths",
+              "category": "practice",
+              "explanation": "File paths are hardcoded based on OS detection, which reduces portability and maintainability.",
+              "suggested_fix": "Use configuration properties or system properties to define the upload directory.",
+              "real": false
+            },
+            {
+              "line": 12,
+              "severity": "low",
+              "type": "Inefficient OS detection",
+              "category": "performance",
+              "explanation": "Using `System.getProperty(\"os.name\").toLowerCase().indexOf(\"win\") >= 0` is less efficient and less readable than using `System.getProperty(\"os.name\").startsWith(\"Windows\")` or similar checks.",
+              "suggested_fix": "Use a more direct string comparison for OS detection.",
+              "real": false
+            },
+            {
+              "line": 33,
+              "severity": "low",
+              "type": "Missing null check for readLine()",
+              "category": "edge_case",
+              "explanation": "If the file is empty, `readLine()` returns null, which is passed to `IO.writeLine()`. Depending on the implementation of `IO.writeLine()`, this might cause a NullPointerException or write the string \"null\".",
+              "suggested_fix": "Check if the result of `readLine()` is not null before passing it to `IO.writeLine()`.",
               "real": false
             }
           ]
@@ -276,37 +354,43 @@
           "caught": 1,
           "extra": 2,
           "missed": [],
-          "seconds": 28.6,
+          "seconds": 36.5,
           "findings": [
             {
-              "line": 3,
+              "line": 5,
               "severity": "high",
-              "type": "Wrong class name",
-              "explanation": "The code imports `java.net.PasswordAuthentication`, but this class does not exist in the standard Java library. The correct class is `javax.swing.PasswordAuthentication`.",
+              "type": "Class name mismatch",
+              "category": "bug",
+              "explanation": "The file is named Case05.java, but the public class is named Example. In Java, a public class must have the same name as its file.",
+              "suggested_fix": "Rename the class to Case05 or rename the file to Example.java.",
               "real": false
             },
             {
               "line": 14,
-              "severity": "high",
-              "type": "Undefined class",
-              "explanation": "The code calls `IO.writeLine`, but the class `IO` is not imported or defined in this file. This will cause a compilation error.",
-              "real": true,
-              "explanation_score": 0
-            },
-            {
-              "line": 5,
               "severity": "medium",
-              "type": "Class name mismatch",
-              "explanation": "The file is named `Case05.java`, but the public class is named `Example`. In Java, the public class name must match the file name.",
-              "real": false
+              "type": "Sensitive data in toString",
+              "category": "security",
+              "explanation": "PasswordAuthentication.toString() includes the password in clear text (e.g., \"user:7e5tc4s3\"). Writing this to IO.writeLine exposes the password.",
+              "suggested_fix": "Use credentials.getName() and credentials.getPassword() separately if needed, or mask the password before logging.",
+              "real": true
             },
             {
               "line": 11,
               "severity": "low",
               "type": "Redundant null check",
-              "explanation": "The variable `data` is assigned a non-null string literal on line 10, so the `if (data != null)` check is always true and redundant.",
-              "real": true,
-              "explanation_score": 1
+              "category": "readability",
+              "explanation": "The variable 'data' is assigned a non-null string literal on line 10, making the null check on line 11 always true.",
+              "suggested_fix": "Remove the if statement or assign data from a potentially null source.",
+              "real": true
+            },
+            {
+              "line": 2,
+              "severity": "low",
+              "type": "Wildcard import",
+              "category": "practice",
+              "explanation": "Using 'import java.io.*;' is generally discouraged as it can lead to naming conflicts and reduces clarity.",
+              "suggested_fix": "Import specific classes, e.g., 'import java.io.IOException;'",
+              "real": false
             }
           ]
         },
@@ -314,151 +398,69 @@
           "caught": 1,
           "extra": 2,
           "missed": [],
-          "seconds": 30.8,
+          "seconds": 39.1,
           "findings": [
             {
               "line": 11,
-              "severity": "medium",
+              "severity": "high",
               "type": "Weak encryption algorithm",
+              "category": "security",
               "explanation": "The code uses the DES algorithm, which is considered weak and insecure for modern applications due to its small 56-bit key size and susceptibility to brute-force attacks.",
+              "suggested_fix": "Replace \"DES\" with \"AES\" and adjust the key size to 128, 192, or 256 bits.",
               "real": false
             },
             {
               "line": 16,
-              "severity": "low",
-              "type": "Unspecified transformation",
-              "explanation": "Using just \"DES\" for Cipher.getInstance relies on the default transformation (usually DES/ECB/PKCS5Padding). ECB mode is not recommended for most use cases as it does not hide data patterns. It is better to specify the full transformation.",
-              "real": true,
-              "explanation_score": 1
+              "severity": "medium",
+              "type": "Unspecified cipher mode",
+              "category": "security",
+              "explanation": "Using \"DES\" (or \"AES\") without specifying a mode and padding defaults to ECB mode, which is not semantically secure as identical plaintext blocks produce identical ciphertext blocks.",
+              "suggested_fix": "Use a specific transformation string like \"AES/CBC/PKCS5Padding\" or \"AES/GCM/NoPadding\".",
+              "real": true
             },
             {
-              "line": 10,
+              "line": 18,
               "severity": "low",
-              "type": "Hardcoded input",
-              "explanation": "The input string is hardcoded, which is fine for an example but not for production. More importantly, it's a magic string.",
+              "type": "Missing exception handling",
+              "category": "edge_case",
+              "explanation": "The method throws `Throwable`, which is overly broad. `getBytes(\"UTF-8\")` can throw `UnsupportedEncodingException`, and `Cipher.getInstance` can throw `NoSuchAlgorithmException` or `NoSuchPaddingException`. While `Throwable` covers these, it is not best practice.",
+              "suggested_fix": "Catch specific exceptions or declare more specific checked exceptions.",
               "real": false
             }
           ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 22.0,
-          "findings": [
-            {
-              "line": 8,
-              "severity": "medium",
-              "type": "Weak Hash Algorithm",
-              "explanation": "MD5 is considered cryptographically weak and prone to collision attacks. If this hash is used for security purposes (e.g., password storage or integrity checks), it should be replaced with a stronger algorithm like SHA-256.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 9,
-              "severity": "low",
-              "type": "Unchecked Exception",
-              "explanation": "The method `getBytes(String charsetName)` throws `UnsupportedEncodingException`. While UTF-8 is guaranteed to be supported in Java, the exception is still checked and must be handled or declared. The current code relies on the `throws Throwable` clause in the method signature, which is broad but technically correct. However, catching `UnsupportedEncodingException` specifically or using `StandardCharsets.UTF_8` (Java 7+) is cleaner.",
-              "real": true,
-              "explanation_score": 0
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 11.5,
-          "findings": [
-            {
-              "line": 9,
-              "severity": "high",
-              "type": "Division by zero",
-              "explanation": "The variable 'data' is initialized to 0 on line 8 and used as a divisor on line 9 without any check, causing an ArithmeticException at runtime.",
-              "real": true,
-              "explanation_score": 2
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 13.9,
-          "findings": [
-            {
-              "line": 9,
-              "severity": "medium",
-              "type": "Integer Overflow",
-              "explanation": "The variable 'data' is initialized to Integer.MAX_VALUE. Adding 1 to it causes an integer overflow, resulting in Integer.MIN_VALUE (-2147483648) instead of the expected 2147483648. This can lead to unexpected logic errors if the result is used for comparisons or array indexing.",
-              "real": true,
-              "explanation_score": 2
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 14.0,
-          "findings": [
-            {
-              "line": 8,
-              "severity": "high",
-              "type": "Null pointer exception",
-              "explanation": "The bitwise AND operator `&` is used instead of the short-circuit logical AND operator `&&`. Since `myString` is initialized to `null`, the first condition `(myString != null)` evaluates to `false`, but the second condition `(myString.length() > 0)` is still evaluated, causing a `NullPointerException`.",
-              "real": true,
-              "explanation_score": 2
-            }
-          ]
-        }
-      ],
-      "quality": {
-        "rated": 15,
-        "explanation": 0.7,
-        "fix": null,
-        "rated_by": "Claude (AI model)"
-      }
-    },
-    {
-      "name": "qwen3.5-9b",
-      "recall": 1.0,
-      "precision": 0.7,
-      "avg_seconds": 77.1,
-      "failures": 2,
-      "results": [
-        {
-          "error": true,
-          "seconds": 126.0
         },
         {
           "caught": 1,
           "extra": 1,
           "missed": [],
-          "seconds": 71.9,
+          "seconds": 33.4,
           "findings": [
             {
-              "line": 18,
-              "severity": "critical",
-              "type": "Command Injection",
-              "explanation": "The application concatenates user-controlled input from the environment variable 'ADD' directly into a command string passed to Runtime.exec(). This allows an attacker to inject arbitrary system commands, leading to remote code execution.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 12,
-              "severity": "medium",
-              "type": "Hardcoded Path",
-              "explanation": "The code uses hardcoded absolute paths for Windows and Linux executables. This reduces portability and may fail if the system structure differs (e.g., different Windows versions or non-standard installations).",
-              "real": false
-            },
-            {
               "line": 8,
-              "severity": "high",
-              "type": "Missing Input Validation",
-              "explanation": "The value of 'data' is retrieved from the environment without any validation or sanitization before being used in a system command. This is the root cause of the injection vulnerability.",
-              "real": true,
-              "explanation_score": 1
+              "severity": "medium",
+              "type": "Weak hash algorithm",
+              "category": "security",
+              "explanation": "MD5 is considered cryptographically weak and prone to collision attacks. If this hash is used for security purposes (e.g., password storage or integrity checks), a stronger algorithm like SHA-256 should be used.",
+              "suggested_fix": "Replace \"MD5\" with \"SHA-256\" or another secure algorithm.",
+              "real": true
+            },
+            {
+              "line": 9,
+              "severity": "low",
+              "type": "Unchecked exception",
+              "category": "edge_case",
+              "explanation": "The method `getBytes(String charsetName)` throws `UnsupportedEncodingException`. While `UTF-8` is guaranteed to be supported in Java, using the `StandardCharsets.UTF_8` constant avoids the checked exception and is more robust.",
+              "suggested_fix": "Use `input.getBytes(StandardCharsets.UTF_8)` and import `java.nio.charset.StandardCharsets`.",
+              "real": true
+            },
+            {
+              "line": 3,
+              "severity": "low",
+              "type": "Class name mismatch",
+              "category": "practice",
+              "explanation": "The file is named `Case07.java` but the class is named `Example`. In Java, the public class name must match the file name. This will cause a compilation error unless the class is not public or the file is renamed.",
+              "suggested_fix": "Rename the class to `Case07` or rename the file to `Example.java`.",
+              "real": false
             }
           ]
         },
@@ -466,65 +468,273 @@
           "caught": 1,
           "extra": 2,
           "missed": [],
-          "seconds": 75.7,
+          "seconds": 27.3,
           "findings": [
             {
-              "line": 5,
-              "severity": "medium",
-              "type": "Missing Exception Handling",
-              "explanation": "The method declares 'throws Throwable', which is a broad and non-specific exception type. This makes it difficult to handle specific errors appropriately and can mask underlying issues. It is best practice to either catch specific exceptions or declare specific checked exceptions.",
-              "real": false
-            },
-            {
-              "line": 11,
+              "line": 9,
               "severity": "high",
-              "type": "Potential XSS Vulnerability",
-              "explanation": "The application directly inserts user input from 'request.getParameter(\"name\")' into an HTML response without sanitization or encoding. An attacker could inject malicious scripts (e.g., <script>alert('XSS')</script>) that execute in the browser of any user viewing the page.",
-              "real": true,
-              "explanation_score": 2
+              "type": "Division by zero",
+              "category": "bug",
+              "explanation": "The variable 'data' is initialized to 0 on line 8 and then used as a divisor on line 9 without any check, causing an ArithmeticException.",
+              "suggested_fix": "Check if 'data' is not zero before dividing, or initialize 'data' to a non-zero value.",
+              "real": true
             },
             {
               "line": 1,
               "severity": "low",
-              "type": "Unnecessary Wildcard Import",
-              "explanation": "The import statement 'import javax.servlet.http.*;' uses a wildcard, which can make the code harder to read and maintain. It also increases the risk of name collisions if classes with the same name exist in other packages. It is generally preferred to import specific classes.",
+              "type": "Wildcard import",
+              "category": "practice",
+              "explanation": "Using a wildcard import (javax.servlet.http.*) can lead to namespace pollution and reduced readability.",
+              "suggested_fix": "Import specific classes from javax.servlet.http if only a few are used, or keep as is if many are used.",
+              "real": false
+            },
+            {
+              "line": 3,
+              "severity": "medium",
+              "type": "Missing class name match",
+              "category": "practice",
+              "explanation": "The file is named Case08.java but the class is named Example. In Java, the public class name must match the file name.",
+              "suggested_fix": "Rename the class to Case08 or rename the file to Example.java.",
               "real": false
             }
           ]
         },
         {
-          "error": true,
-          "seconds": 125.8
+          "caught": 1,
+          "extra": 2,
+          "missed": [],
+          "seconds": 23.9,
+          "findings": [
+            {
+              "line": 9,
+              "severity": "medium",
+              "type": "Integer overflow",
+              "category": "bug",
+              "explanation": "Adding 1 to Integer.MAX_VALUE causes an integer overflow, resulting in Integer.MIN_VALUE instead of the expected larger value.",
+              "suggested_fix": "Use long arithmetic: long result = (long) data + 1;",
+              "real": true
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "Unused import",
+              "category": "practice",
+              "explanation": "The import javax.servlet.http.* is not used in this class.",
+              "suggested_fix": "Remove the import statement.",
+              "real": false
+            },
+            {
+              "line": 3,
+              "severity": "low",
+              "type": "Class name mismatch",
+              "category": "practice",
+              "explanation": "The file is named Case09.java but the class is named Example. In Java, the public class name must match the file name.",
+              "suggested_fix": "Rename the class to Case09 or rename the file to Example.java.",
+              "real": false
+            }
+          ]
         },
         {
           "caught": 1,
           "extra": 0,
           "missed": [],
-          "seconds": 84.9,
+          "seconds": 18.1,
           "findings": [
             {
-              "line": 14,
+              "line": 8,
               "severity": "high",
-              "type": "Information Disclosure",
-              "explanation": "The code calls toString() on a PasswordAuthentication object and writes the result to output. The toString() method of PasswordAuthentication returns the username and password in plain text, leaking sensitive credentials.",
-              "real": true,
-              "explanation_score": 0
+              "type": "Use of bitwise AND instead of logical AND",
+              "category": "bug",
+              "explanation": "The code uses the bitwise AND operator `&` instead of the short-circuit logical AND operator `&&`. Since `myString` is initialized to `null`, the first condition `(myString != null)` evaluates to `false`. However, because `&` does not short-circuit, the second condition `(myString.length() > 0)` is still evaluated, causing a `NullPointerException`.",
+              "suggested_fix": "Replace `&` with `&&` to enable short-circuit evaluation: `if ((myString != null) && (myString.length() > 0))`",
+              "real": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "qwen3.5:9b",
+      "recall": 1.0,
+      "precision": 0.4883720930232558,
+      "precision_unique": 0.23255813953488372,
+      "avg_seconds": 20.8,
+      "failures": 0,
+      "results": [
+        {
+          "caught": 1,
+          "extra": 5,
+          "missed": [],
+          "seconds": 42.0,
+          "findings": [
+            {
+              "line": 17,
+              "severity": "critical",
+              "type": "SQL Injection",
+              "category": "security",
+              "explanation": "The code constructs an SQL query by directly concatenating user input ('data') into the SQL string. This is a classic SQL injection vulnerability. An attacker can manipulate the 'data' variable to alter the query logic, extract data, or modify/delete database contents.",
+              "suggested_fix": "Use PreparedStatement with parameterized queries instead of string concatenation. Example: String sql = \"insert into users (status) values (?) where name=?\"; PreparedStatement pstmt = dbConnection.prepareStatement(sql); pstmt.setString(1, \"updated\"); pstmt.setString(2, data); pstmt.executeUpdate();",
+              "real": true
             },
             {
-              "line": 10,
+              "line": 15,
+              "severity": "high",
+              "type": "Resource Leak",
+              "category": "bug",
+              "explanation": "The 'dbConnection' variable is initialized to null on line 11 but assigned a new value on line 15. If the assignment on line 15 throws an exception (e.g., from IO.getDBConnection()), the connection is never closed because the finally block checks for null and skips closing if it remains null. However, more critically, if 'dbConnection' was successfully created but the subsequent code in the try block fails before reaching the finally block's close logic (which it does here), resources are leaked. While the finally block attempts to close, the initial assignment of `null` combined with potential exceptions during initialization makes resource management fragile.",
+              "suggested_fix": "Initialize 'dbConnection' and 'sqlStatement' properly or use try-with-resources (Java 7+) for automatic resource management. Example: Connection dbConnection = null; Statement sqlStatement = null; ... try { dbConnection = IO.getDBConnection(); ... } finally { if (dbConnection != null) { dbConnection.close(); } }",
+              "real": false
+            },
+            {
+              "line": 16,
+              "severity": "high",
+              "type": "Resource Leak",
+              "category": "bug",
+              "explanation": "The 'sqlStatement' is created on line 16. If an exception occurs between lines 15 and 17 (e.g., during createStatement), the statement object might not be closed if it was successfully created but then an error happened before the finally block's check. Although the current code checks for null in the finally block, relying on null checks after creation is less robust than try-with-resources.",
+              "suggested_fix": "Use try-with-resources to ensure both 'dbConnection' and 'sqlStatement' are closed automatically if they implement AutoCloseable (which JDBC connections and statements do). Example: try (Connection dbConnection = IO.getDBConnection(); Statement sqlStatement = dbConnection.createStatement()) { ... }",
+              "real": true
+            },
+            {
+              "line": 22,
               "severity": "medium",
-              "type": "Hardcoded Credentials",
-              "explanation": "The variable 'data' is initialized with a hardcoded string '7e5tc4s3' which is then used as a password. Hardcoding secrets in source code is a security anti-pattern.",
-              "real": true,
-              "explanation_score": 2
+              "type": "Poor Logging Practice",
+              "category": "practice",
+              "explanation": "The log message on line 22 says \"Error getting database connection\" but the exception 'exceptSql' is logged. This suggests a generic error message that doesn't accurately reflect the specific SQL exception caught in the catch block. It should be more descriptive or use the exception's message.",
+              "suggested_fix": "Change the log message to something like \"Error executing database operation: {0}\" and pass the exception message or use the exception object directly in the log call if supported by the logging framework.",
+              "real": false
+            },
+            {
+              "line": 35,
+              "severity": "medium",
+              "type": "Poor Logging Practice",
+              "category": "practice",
+              "explanation": "The log message on line 35 says \"Error closing Statement\" but the exception 'exceptSql' is logged. Similar to line 22, this is a generic error message that doesn't provide specific context about what went wrong during the close operation.",
+              "suggested_fix": "Change the log message to something like \"Error closing Statement: {0}\" and pass the exception message or use the exception object directly in the log call if supported by the logging framework.",
+              "real": false
+            },
+            {
+              "line": 46,
+              "severity": "medium",
+              "type": "Poor Logging Practice",
+              "category": "practice",
+              "explanation": "The log message on line 46 says \"Error closing Connection\" but the exception 'exceptSql' is logged. Similar to lines 22 and 35, this is a generic error message that doesn't provide specific context about what went wrong during the close operation.",
+              "suggested_fix": "Change the log message to something like \"Error closing Connection: {0}\" and pass the exception message or use the exception object directly in the log call if supported by the logging framework.",
+              "real": false
+            },
+            {
+              "line": 24,
+              "severity": "low",
+              "type": "Unnecessary Complexity",
+              "category": "readability",
+              "explanation": "The nested try-catch blocks within the finally block (lines 26-47) are overly complex and redundant. The finally block should ideally just close resources without catching exceptions separately for each resource if using try-with-resources. Even with manual closing, having separate catch blocks for each resource closure inside a finally block is unnecessary; one catch block can handle all exceptions during cleanup.",
+              "suggested_fix": "Simplify the finally block to use a single try-catch that handles exceptions from closing both resources, or better yet, refactor to use try-with-resources which eliminates the need for manual closing and nested try-catch blocks.",
+              "real": false
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 2,
+          "missed": [],
+          "seconds": 20.9,
+          "findings": [
+            {
+              "line": 8,
+              "severity": "critical",
+              "type": "OS Command Injection",
+              "category": "security",
+              "explanation": "The code reads user-controlled input from the environment variable 'ADD' and directly concatenates it into a command string passed to Runtime.exec(). This allows an attacker to inject arbitrary OS commands.",
+              "suggested_fix": "Do not pass untrusted data to Runtime.exec(). Validate and sanitize input strictly, or use ProcessBuilder with a list of arguments instead of a single concatenated string. Ideally, avoid executing external commands with user input entirely.",
+              "real": true
+            },
+            {
+              "line": 12,
+              "severity": "medium",
+              "type": "Hardcoded File Paths",
+              "category": "practice",
+              "explanation": "The path 'c:\\WINDOWS\\SYSTEM32\\cmd.exe' is hardcoded and uses backslashes which are Windows-specific. This reduces portability and maintainability.",
+              "suggested_fix": "Use a platform-independent way to locate the command interpreter, such as ProcessBuilder with 'cmd.exe' or '/bin/sh' depending on the OS detected, but ensure paths are resolved using standard APIs like File.separatorChar if necessary.",
+              "real": false
+            },
+            {
+              "line": 5,
+              "severity": "medium",
+              "type": "Missing Exception Handling",
+              "category": "bug",
+              "explanation": "The method declares 'throws Throwable' but does not handle any exceptions that might occur during process execution (e.g., IOException from Runtime.exec()). This can lead to unexpected crashes.",
+              "suggested_fix": "Catch specific exceptions like IOException and handle them appropriately, or log the error and exit gracefully.",
+              "real": false
+            },
+            {
+              "line": 8,
+              "severity": "low",
+              "type": "Unnecessary Environment Variable Usage",
+              "category": "practice",
+              "explanation": "Using System.getenv('ADD') to capture user input is unusual and potentially insecure if 'ADD' can be manipulated by an attacker. It's better to get input from a known safe source or validate it strictly.",
+              "suggested_fix": "Replace with a validated user input source (e.g., request parameter) and ensure strict validation before use.",
+              "real": true
+            },
+            {
+              "line": 18,
+              "severity": "low",
+              "type": "Inefficient Command Construction",
+              "category": "performance",
+              "explanation": "Concatenating strings with '+' in a loop or multiple times can be inefficient. Although not a loop here, using ProcessBuilder is more efficient and safer for command execution.",
+              "suggested_fix": "Use ProcessBuilder with a list of arguments instead of string concatenation.",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 1,
+          "missed": [],
+          "seconds": 20.1,
+          "findings": [
+            {
+              "line": 8,
+              "severity": "high",
+              "type": "SQL injection",
+              "category": "security",
+              "explanation": "The code retrieves user input via request.getParameter(\"name\") and directly includes it in a response without validation or sanitization. While not an SQL injection here (no DB call), this pattern is dangerous if used with database queries later. More critically, exposing raw user input in logs/responses can lead to information disclosure.",
+              "suggested_fix": "Validate and sanitize the input parameter before use. Avoid logging sensitive or untrusted data directly.",
+              "real": true
+            },
+            {
+              "line": 11,
+              "severity": "medium",
+              "type": "Information disclosure",
+              "category": "security",
+              "explanation": "User-supplied input is printed directly to the response without filtering, which may expose sensitive data or enable XSS if the output is rendered in a browser context.",
+              "suggested_fix": "Escape HTML special characters before printing user input to prevent XSS. Example: use javax.servlet.jsp.jstl.fmt.FormatNumber or a utility like OWASP Java Encoder.",
+              "real": true
+            },
+            {
+              "line": 11,
+              "severity": "medium",
+              "type": "Resource leak",
+              "category": "performance",
+              "explanation": "getWriter() returns a PrintWriter that should be closed after use. Although Tomcat may close it automatically, explicit closing is best practice to avoid resource leaks in high-concurrency environments.",
+              "suggested_fix": "Use try-with-resources or ensure the writer is closed after writing.",
+              "real": true
+            },
+            {
+              "line": 5,
+              "severity": "low",
+              "type": "Poor coding practice",
+              "category": "practice",
+              "explanation": "The method throws Throwable instead of specific exceptions. This is discouraged as it can hide real errors and make debugging harder.",
+              "suggested_fix": "Change 'throws Throwable' to 'throws ServletException, IOException' or declare no exception if handled internally.",
+              "real": false
             },
             {
               "line": 9,
               "severity": "low",
-              "type": "Unnecessary Variable",
-              "explanation": "The variable 'data' is assigned a constant value immediately and is not modified. It could be inlined directly into the PasswordAuthentication constructor to simplify the code.",
-              "real": true,
-              "explanation_score": 1
+              "type": "Unnecessary null check",
+              "category": "readability",
+              "explanation": "The null check on data is redundant because getParameter returns null if the parameter is missing, but the code already handles that case implicitly by not printing anything. However, it's acceptable; no fix needed unless style guide requires else block.",
+              "suggested_fix": "Optional: refactor to use ternary or default value for cleaner logic.",
+              "real": true
             }
           ]
         },
@@ -532,35 +742,271 @@
           "caught": 1,
           "extra": 3,
           "missed": [],
-          "seconds": 93.6,
+          "seconds": 22.9,
+          "findings": [
+            {
+              "line": 10,
+              "severity": "critical",
+              "type": "Path Traversal",
+              "category": "security",
+              "explanation": "The application reads user-controlled input from the environment variable 'ADD' and directly concatenates it to a file path without validation. This allows an attacker to read arbitrary files on the server (e.g., /etc/passwd) by providing paths like '../../../etc/passwd'.",
+              "suggested_fix": "Validate that the 'data' string is relative and does not contain '..' or absolute path separators. Alternatively, use a whitelist of allowed filenames.",
+              "real": true
+            },
+            {
+              "line": 23,
+              "severity": "medium",
+              "type": "Resource Leak",
+              "category": "performance",
+              "explanation": "The 'streamFileInputSink' variable is initialized to null but never closed if an exception occurs during the creation of InputStreamReader or BufferedReader. While the finally block attempts to close resources, it only checks for non-null references which might be misleading if the initialization itself fails silently or if the logic inside try-catch blocks doesn't guarantee assignment before the finally block runs in all scenarios. More critically, if 'streamFileInputSink' is not assigned (e.g., constructor throws exception), the finally block's check `if (streamFileInputSink != null)` prevents closing it, but since it was never initialized to a non-null value, this specific leak path is less likely. However, the primary issue is the lack of try-with-resources which guarantees closure.",
+              "suggested_fix": "Use try-with-resources statement for FileInputStream, InputStreamReader, and BufferedReader to ensure they are automatically closed.",
+              "real": true
+            },
+            {
+              "line": 14,
+              "severity": "low",
+              "type": "Hardcoded Path",
+              "category": "practice",
+              "explanation": "The root directory path 'C:\\uploads\\' is hardcoded for Windows systems. This reduces portability and maintainability.",
+              "suggested_fix": "Use a configuration file or environment variable to define the upload directory instead of hardcoding it.",
+              "real": false
+            },
+            {
+              "line": 28,
+              "severity": "low",
+              "type": "Unnecessary Complexity",
+              "category": "readability",
+              "explanation": "The nested try-catch-finally blocks for closing resources are overly verbose and reduce readability. Java's try-with-resources simplifies this significantly.",
+              "suggested_fix": "Replace the manual close logic with a single try-with-resources block.",
+              "real": false
+            },
+            {
+              "line": 7,
+              "severity": "medium",
+              "type": "Missing Exception Handling",
+              "category": "bug",
+              "explanation": "The method 'run' declares 'throws Throwable', which is a bad practice as it hides specific exceptions and makes the code harder to debug. Specific exceptions like IOException should be caught or declared explicitly.",
+              "suggested_fix": "Remove 'throws Throwable' and handle specific exceptions like IOException within the method.",
+              "real": false
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 2,
+          "missed": [],
+          "seconds": 20.7,
+          "findings": [
+            {
+              "line": 10,
+              "severity": "critical",
+              "type": "Hardcoded Credentials",
+              "category": "security",
+              "explanation": "The code hardcodes a password ('7e5tc4s3') directly into the source file. This is a critical security vulnerability as it exposes sensitive credentials to anyone who can view the source code.",
+              "suggested_fix": "Remove the hardcoded string and read the password from a secure configuration file, environment variable, or a secrets manager.",
+              "real": true
+            },
+            {
+              "line": 7,
+              "severity": "medium",
+              "type": "Improper Exception Handling",
+              "category": "practice",
+              "explanation": "The method 'run' declares a generic 'throws Throwable'. This is generally considered poor practice as it hides the specific nature of exceptions and makes debugging harder. Specific checked exceptions should be declared or caught.",
+              "suggested_fix": "Remove 'throws Throwable' from the method signature and handle specific exceptions (e.g., IOException, IllegalArgumentException) appropriately within the method.",
+              "real": false
+            },
+            {
+              "line": 11,
+              "severity": "low",
+              "type": "Unnecessary Null Check",
+              "category": "readability",
+              "explanation": "The variable 'data' is assigned a non-null string literal on line 10. The null check on line 11 is therefore redundant and adds unnecessary complexity.",
+              "suggested_fix": "Remove the if (data != null) block since data is guaranteed to be non-null after assignment.",
+              "real": true
+            },
+            {
+              "line": 14,
+              "severity": "medium",
+              "type": "Use of Deprecated/Non-Standard API",
+              "category": "practice",
+              "explanation": "The method 'IO.writeLine' is not part of the standard Java API (java.io). It appears to be a custom or non-existent method, which will cause a compilation error. The standard way to print to console is System.out.println.",
+              "suggested_fix": "Replace 'IO.writeLine(credentials.toString())' with 'System.out.println(credentials.toString());'.",
+              "real": true
+            },
+            {
+              "line": 5,
+              "severity": "low",
+              "type": "Unnecessary Class Name",
+              "category": "readability",
+              "explanation": "The class is named 'Example', which is generic and does not describe the functionality of the code. It should be renamed to something more descriptive.",
+              "suggested_fix": "Rename the class to a more descriptive name like 'CredentialHandler' or 'PasswordAuthenticator'.",
+              "real": false
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 5,
+          "missed": [],
+          "seconds": 27.3,
           "findings": [
             {
               "line": 11,
               "severity": "high",
               "type": "Deprecated Algorithm",
-              "explanation": "The DES (Data Encryption Standard) algorithm is cryptographically broken and considered insecure for protecting sensitive data. It uses a 56-bit key, which can be brute-forced easily.",
-              "real": false
-            },
-            {
-              "line": 12,
-              "severity": "medium",
-              "type": "Hardcoded Key Length",
-              "explanation": "Initializing the key generator with a hardcoded integer (56) is error-prone and does not account for the algorithm's internal key size requirements (e.g., AES requires 128, 192, or 256 bits). It is better to use the algorithm's default key size or specify it explicitly based on the chosen algorithm.",
+              "category": "security",
+              "explanation": "The code uses 'DES' (Data Encryption Standard), which is considered cryptographically broken and insecure. It has a key size of only 56 bits, making it vulnerable to brute-force attacks.",
+              "suggested_fix": "Replace 'DES' with 'AES'. Update the KeyGenerator initialization to use a 128-bit or higher key length (e.g., 128). Example: KeyGenerator.getInstance(\"AES\").init(128);",
               "real": false
             },
             {
               "line": 16,
               "severity": "high",
-              "type": "Missing IV",
-              "explanation": "The code uses ECB (Electronic Codebook) mode implicitly by not specifying a mode or IV. ECB mode is insecure because identical plaintext blocks result in identical ciphertext blocks, leaking patterns. Additionally, DES/AES encryption without an Initialization Vector (IV) is generally considered a security flaw.",
-              "real": true,
-              "explanation_score": 1
+              "type": "Deprecated Cipher Mode",
+              "category": "security",
+              "explanation": "The code initializes the Cipher with 'DES' without specifying a mode or padding. Even if DES were replaced, using ECB (Electronic Codebook) mode is insecure because it reveals patterns in the plaintext. The default for DES was often ECB.",
+              "suggested_fix": "Specify a secure mode like 'AES/CBC/PKCS5Padding'. Example: Cipher.getInstance(\"AES/CBC/PKCS5Padding\").init(Cipher.ENCRYPT_MODE, secretKeySpec);",
+              "real": true
+            },
+            {
+              "line": 12,
+              "severity": "medium",
+              "type": "Hardcoded Key Length",
+              "category": "security",
+              "explanation": "The key length is hardcoded as 56 bits. DES requires exactly 56 bits, but this practice is poor because it ties the code to a specific, now-insecure algorithm. When switching to AES, the key length should be configurable or explicitly set to 128/192/256.",
+              "suggested_fix": "Remove the hardcoded 56. Use KeyGenerator.getInstance(\"AES\").init(128) instead.",
+              "real": false
+            },
+            {
+              "line": 8,
+              "severity": "medium",
+              "type": "Missing Exception Handling",
+              "category": "practice",
+              "explanation": "The method declares 'throws Throwable', which is too broad and hides specific exceptions that should be handled or declared more precisely (e.g., NoSuchAlgorithmException, InvalidKeyException). This makes error handling difficult for callers.",
+              "suggested_fix": "Change the signature to throw specific checked exceptions like IOException or RuntimeException, or handle them internally. Avoid throwing Throwable unless absolutely necessary.",
+              "real": false
             },
             {
               "line": 18,
               "severity": "low",
-              "type": "Charset Hardcoding",
-              "explanation": "The charset 'UTF-8' is hardcoded in the getBytes() call. While UTF-8 is standard, it is better practice to use a standard charset instance or handle potential charset issues more robustly, though this is less critical than the cryptographic issues.",
+              "type": "Insecure String Encoding",
+              "category": "security",
+              "explanation": "While 'UTF-8' is generally safe, relying on platform default charset (which was the behavior before Java 7) could be an issue if not explicitly specified. However, since UTF-8 is used here, this is less critical. The main issue is that the input string is hardcoded.",
+              "suggested_fix": "Ensure all string encodings are explicit (already done with UTF-8). Consider making the input string a parameter instead of hardcoded.",
+              "real": false
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "Missing Import",
+              "category": "readability",
+              "explanation": "The code uses 'IO.writeLine' and 'IO.toHex', but the import for these classes is missing. This will cause a compilation error.",
+              "suggested_fix": "Add the appropriate imports, e.g., 'import java.io.IOException;' if using standard IO, or ensure the custom IO class is imported correctly.",
+              "real": false
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 1,
+          "missed": [],
+          "seconds": 12.4,
+          "findings": [
+            {
+              "line": 9,
+              "severity": "medium",
+              "type": "Deprecated API Usage",
+              "category": "practice",
+              "explanation": "The 'getBytes(String charsetName)' method is deprecated. It should be replaced with the NIO charset constructor.",
+              "suggested_fix": "byte[] hashValue = messageDigest.digest(input.getBytes(StandardCharsets.UTF_8));",
+              "real": true
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "Missing Import",
+              "category": "readability",
+              "explanation": "The code uses 'IO' class but does not import it. Assuming standard Java IO, the correct import is 'java.io.*'. If 'IO' refers to a custom utility class, it must be imported.",
+              "suggested_fix": "import java.io.*;",
+              "real": false
+            },
+            {
+              "line": 8,
+              "severity": "high",
+              "type": "Weak Cryptographic Algorithm",
+              "category": "security",
+              "explanation": "MD5 is cryptographically broken and should not be used for security-sensitive applications like password hashing or data integrity checks.",
+              "suggested_fix": "MessageDigest messageDigest = MessageDigest.getInstance(\"SHA-256\");",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 1,
+          "missed": [],
+          "seconds": 10.6,
+          "findings": [
+            {
+              "line": 9,
+              "severity": "high",
+              "type": "ArithmeticException",
+              "category": "bug",
+              "explanation": "The code attempts to divide by zero when 'data' is 0, which will throw an ArithmeticException at runtime.",
+              "suggested_fix": "Add a check to ensure 'data' is not zero before performing the division, or initialize 'data' with a non-zero value.",
+              "real": true
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "UnusedImport",
+              "category": "practice",
+              "explanation": "The import statement 'import javax.servlet.http.*;' is unused in the provided code snippet.",
+              "suggested_fix": "Remove the unused import statement to keep the code clean.",
+              "real": false
+            },
+            {
+              "line": 7,
+              "severity": "low",
+              "type": "UnusedVariable",
+              "category": "readability",
+              "explanation": "The variable 'data' is declared but its value is immediately overwritten on the next line without being used in any meaningful way before that.",
+              "suggested_fix": "Remove the initial assignment or use the variable meaningfully.",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 2,
+          "missed": [],
+          "seconds": 12.4,
+          "findings": [
+            {
+              "line": 9,
+              "severity": "high",
+              "type": "Integer Overflow",
+              "category": "bug",
+              "explanation": "The code performs an integer addition that causes overflow. Adding 1 to Integer.MAX_VALUE results in Integer.MIN_VALUE due to two's complement wraparound, leading to incorrect logic.",
+              "suggested_fix": "Use long arithmetic or check for overflow before adding: if (data != Integer.MAX_VALUE) { int result = data + 1; } else { handleMaxValue(); }",
+              "real": true
+            },
+            {
+              "line": 5,
+              "severity": "medium",
+              "type": "Missing Exception Handling",
+              "category": "practice",
+              "explanation": "The method declares 'throws Throwable', which is a broad exception type that should generally be avoided. It's better to declare specific exceptions or handle them internally.",
+              "suggested_fix": "Remove 'throws Throwable' and handle potential exceptions within the method or throw more specific exceptions.",
+              "real": false
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "Unused Import",
+              "category": "readability",
+              "explanation": "The import statement 'import javax.servlet.http.*;' is unused in the code and should be removed to improve readability.",
+              "suggested_fix": "Remove the unused import statement.",
               "real": false
             }
           ]
@@ -569,97 +1015,20 @@
           "caught": 1,
           "extra": 0,
           "missed": [],
-          "seconds": 71.4,
+          "seconds": 18.6,
           "findings": [
             {
               "line": 8,
               "severity": "high",
-              "type": "Weak Cryptographic Algorithm",
-              "explanation": "The code uses MD5 for hashing. MD5 is cryptographically broken and unsuitable for security-sensitive applications due to known collision attacks.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 9,
-              "severity": "medium",
-              "type": "Charset Encoding Issue",
-              "explanation": "The charset 'UTF-8' is hardcoded in the byte conversion. While UTF-8 is standard, relying on a specific charset without validation or using the platform default can lead to inconsistencies in different environments. It is better to explicitly handle encoding or use the platform default if the input is guaranteed to be ASCII/UTF-8 compatible, but for security, explicit is better.",
-              "real": true,
-              "explanation_score": 0
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 60.4,
-          "findings": [
-            {
-              "line": 9,
-              "severity": "high",
-              "type": "ArithmeticException",
-              "explanation": "The code performs integer division (100 / data) where 'data' is initialized to 0. This will cause an ArithmeticException at runtime because division by zero is undefined.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 7,
-              "severity": "low",
-              "type": "UnusedVariable",
-              "explanation": "The variable 'data' is assigned a value of 0 but is immediately used in a division by zero operation. While this causes a crash, the logic is flawed. If the intention was to demonstrate a safe division, the variable should be checked. If the intention was to use a dynamic value, the initialization to 0 is likely a placeholder error.",
-              "real": true,
-              "explanation_score": 0
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 55.0,
-          "findings": [
-            {
-              "line": 9,
-              "severity": "high",
-              "type": "Integer Overflow",
-              "explanation": "The code performs an addition on `data` which is set to `Integer.MAX_VALUE`. Adding 1 to `Integer.MAX_VALUE` causes an integer overflow, resulting in `Integer.MIN_VALUE` due to two's complement arithmetic. This leads to incorrect logic and potential security vulnerabilities if the result is used for bounds checking or cryptographic operations.",
-              "real": true,
-              "explanation_score": 2
-            }
-          ]
-        },
-        {
-          "caught": 1,
-          "extra": 0,
-          "missed": [],
-          "seconds": 103.9,
-          "findings": [
-            {
-              "line": 8,
-              "severity": "high",
-              "type": "Logical Operator Misuse",
-              "explanation": "The code uses the bitwise AND operator '&' instead of the logical AND operator '&&' in a conditional statement. Since the left operand (myString != null) is evaluated first, if it is true, the right operand (myString.length() > 0) is evaluated. However, if the left operand were false, the right operand would still be evaluated because '&' does not short-circuit. More critically, if the intention was to check for null safety, using '&' means that if `myString` is null, the left side is false, but the right side `myString.length()` will still be evaluated, causing a NullPointerException. Wait, actually, if `myString` is null, `myString != null` is false. With `&`, the right side is still evaluated. `myString.length()` on a null reference throws NullPointerException. With `&&`, if the left is false, the right is skipped. So using `&` here causes a NullPointerException when `myString` is null, whereas `&&` would safely skip the length check. This is a logic error leading to a runtime exception.",
-              "real": true,
-              "explanation_score": 2
-            },
-            {
-              "line": 8,
-              "severity": "medium",
-              "type": "Unnecessary Null Check",
-              "explanation": "The condition `(myString != null)` is redundant if the subsequent check `myString.length() > 0` is intended to be the primary guard. However, since `myString` is explicitly set to `null` on line 7, the condition will always be false if `&&` is used, making the whole block unreachable. If the goal is to handle nulls, the check is necessary but the logic order is flawed. If the goal is to just check length, the null check is needed but the operator is wrong. Given `myString` is initialized to null, the block never executes. This suggests a logic flaw in the intended flow or a misunderstanding of the variable state.",
-              "real": true,
-              "explanation_score": 0
+              "type": "NullPointerException",
+              "category": "bug",
+              "explanation": "The condition checks `myString != null` first, but uses the bitwise AND operator `&` instead of the short-circuiting logical AND operator `&&`. If `myString` were not null, the second part `myString.length()` would be evaluated. However, since `myString` is explicitly set to `null` on line 7, the first part of the condition with `&` evaluates to false without evaluating the second part in this specific instance due to short-circuiting rules? Wait, `&` does NOT short-circuit. Therefore, if the first operand is true, the second is evaluated. But here the first operand is false (`myString != null` is false). So with `&`, since the first is false, the second is NOT evaluated. This means no NPE occurs in this specific execution path because the first check fails.\n\nWait, let me re-evaluate the logic carefully.\nLine 7: `String myString = null;`\nLine 8: `if ((myString != null) & (myString.length() > 0))`\n\nEvaluation of `(myString != null)`: `null != null` is `false`.\nOperator `&`: Does not short-circuit. It evaluates both sides regardless of the first side's value.\nSo, it proceeds to evaluate `(myString.length() > 0)`.\nSince `myString` is `null`, calling `.length()` on it throws a `NullPointerException`.\n\nConclusion: This is a bug (NullPointerException) caused by using `&` instead of `&&`. The intended logic was likely to check null first and skip the length check if null. With `&`, the null check fails, but the code still tries to access the length, causing an exception.",
+              "suggested_fix": "Change the bitwise AND operator '&' to the logical AND operator '&&' on line 8. This ensures that if `myString` is null, the second part of the condition is not evaluated, preventing the NullPointerException.",
+              "real": true
             }
           ]
         }
-      ],
-      "quality": {
-        "rated": 14,
-        "explanation": 0.6071428571428571,
-        "fix": null,
-        "rated_by": "Claude (AI model)"
-      }
+      ]
     }
   ]
 }

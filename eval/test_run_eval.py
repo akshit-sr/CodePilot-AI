@@ -60,6 +60,19 @@ def test_prompt_matches_worker():
         assert line in worker, line
 
 
+def test_prompt_without_line_numbers_sends_plain_code():
+    from run_eval import prompt
+    text = prompt("a = 1\nb = 2", "python", "f.py", numbered=False)
+    assert "```python\na = 1\nb = 2\n```" in text and "1|" not in text and "line number" not in text
+
+
+def test_unique_precision_counts_each_bug_once(monkeypatch):
+    import run_eval
+    monkeypatch.setattr(run_eval, "review", lambda *a: [{"line": 4}, {"line": 4}, {"line": 5}, {"line": 30}])
+    m = run_eval.evaluate("m", "url", None, 1, [{"file": "f", "bugs": [{"line": 4, "label": "a"}]}])
+    assert m["precision"] == 0.75 and m["precision_unique"] == 0.25
+
+
 def test_resume_skips_files_already_done(monkeypatch, tmp_path):
     import run_eval
     cases = [{"file": "a", "bugs": [{"line": 1, "label": "x"}]}, {"file": "b", "bugs": [{"line": 2, "label": "y"}]}]

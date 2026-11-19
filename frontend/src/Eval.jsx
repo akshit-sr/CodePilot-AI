@@ -8,6 +8,14 @@ const pct = x => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const short = name => name.split("-").slice(0, 2).join("-"); // e.g. "qwen3.5-9b-instruct" -> "qwen3.5-9b"
 const name = c => c.title ?? c.file;
 
+// Share of findings that land on a known bug when each bug counts once (repeats count as false alarms).
+// Worked out from the results, so result files written before run_eval.py saved this figure show it too.
+const uniquePrecision = m => {
+  const done = (m.results || []).filter(r => !r.error);
+  const findings = done.reduce((n, r) => n + (r.findings?.length ?? 0), 0);
+  return findings ? done.reduce((n, r) => n + (r.caught ?? 0), 0) / findings : null;
+};
+
 // One bar: k picks the model's color index (.s0, .s1, etc.); failed draws a striped track
 const Bar = ({ k = 0, value = 0, max = 1, label, tip, failed }) => {
   const fillWidth = max > 0 ? Math.min(value / max, 1) * 100 : 0;
@@ -53,6 +61,8 @@ function Charts({ data }) {
           {/* The two quality rows are rubric scores (eval/rate.py); they appear once someone has rated, and say who. */}
           {[
             ["Bugs caught", m => m.recall],
+            ["Findings on a known bug", m => m.precision],
+            ["Findings on a known bug, each bug counted once", uniquePrecision],
             [`Explanation quality (rated by ${rater})`, m => m.quality?.explanation],
             [`Fix quality (rated by ${rater})`, m => m.quality?.fix],
           ]
@@ -143,6 +153,52 @@ function Charts({ data }) {
   );
 }
 
+// The ablation: the same files reviewed with and without line numbers in the prompt (run_eval.py --no-line-numbers).
+function LineNumbers({ data, without }) {
+  const ms = without.models.filter(m => data.models.some(d => d.name === m.name));
+  if (!ms.length) return null;
+  const withNumbers = m => data.models.find(d => d.name === m.name);
+  const color = m => data.models.findIndex(d => d.name === m.name);
+  const gain = withNumbers(ms[0]).recall - ms[0].recall;
+  const rows = [
+    ["Bugs caught, with line numbers", m => withNumbers(m).recall],
+    ["Bugs caught, without line numbers", m => m.recall],
+    ["Findings on a known bug (each counted once), with line numbers", m => uniquePrecision(withNumbers(m))],
+    ["Findings on a known bug (each counted once), without line numbers", uniquePrecision],
+  ];
+
+  return (
+    <figure className="chart wide">
+      <figcaption>
+        Do line numbers in the prompt help?<span>same files, same models, prompt with and without line numbers</span>
+      </figcaption>
+      {Number.isFinite(gain) && (
+        <p className="chero">
+          <b>
+            {gain >= 0 ? "+" : "−"}
+            {Math.abs(Math.round(gain * 100))}
+          </b>
+          points of bugs caught with line numbers: {short(ms[0].name)}
+        </p>
+      )}
+      {rows.map(([label, get]) => (
+        <div className="cgroup" key={label}>
+          <p>{label}</p>
+          {ms.map(m => (
+            <Bar
+              key={m.name}
+              k={color(m)}
+              value={get(m) ?? 0}
+              label={pct(get(m))}
+              tip={`${short(m.name)}: ${pct(get(m))}`}
+            />
+          ))}
+        </div>
+      ))}
+    </figure>
+  );
+}
+
 function Detail({ c, i, models }) {
   const bugAt = new Map((c.bugs || []).map(b => [b.line, b.label]));
 
@@ -221,6 +277,11 @@ function Suite({ data }) {
       </p>
 
       <Charts data={data} />
+      {data.without && (
+        <div className="eval-charts charts">
+          <LineNumbers data={data} without={data.without} />
+        </div>
+      )}
 
       <div className="eval-scroll">
         <table className="eval-table">
@@ -273,12 +334,16 @@ export default function Eval() {
   const [tab, setTab] = useState(0);
 
   useEffect(() => {
+    const load = f =>
+      fetch("/" + f)
+        .then(r => (r.ok ? r.json() : null))
+        .catch(() => null);
+    // Each suite may also have an ablation run without line numbers: eval-quixbugs.json -> eval-quixbugs-nolines.json.
     Promise.all(
-      FILES.map(f =>
-        fetch("/" + f)
-          .then(r => (r.ok ? r.json() : null))
-          .catch(() => null),
-      ),
+      FILES.map(async f => {
+        const [data, without] = await Promise.all([load(f), load(f.replace(".json", "-nolines.json"))]);
+        return data && { ...data, without };
+      }),
     ).then(all => setSuites(all.filter(Boolean)));
   }, []);
 

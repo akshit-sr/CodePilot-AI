@@ -93,17 +93,21 @@ LANGUAGE_NAMES = {"python": "Python", "javascript": "JavaScript", "c": "C", "jav
 
 
 # ponytail: copy of the prompt in worker/src/index.ts so the scores match the live app; keep the two in sync.
-def prompt(code, language, filename):
-    numbered = "\n".join(f"{i}| {line}" for i, line in enumerate(code.split("\n"), 1))
+NUMBERED = True  # False for the ablation run (--no-line-numbers): same prompt without the line numbers
+
+
+def prompt(code, language, filename, numbered=True):
+    body = "\n".join(f"{i}| {line}" for i, line in enumerate(code.split("\n"), 1)) if numbered else code
+    lines_rule = ('Each source line below starts with its line number and "| "; use that number for "line". '
+                  "The numbers are not part of the code: leave them out of improved_code.\n") if numbered else ""
     return f"""Review this {LANGUAGE_NAMES[language]} source file ({filename}). Return only valid JSON matching this schema:
 {{"findings":[{{"type":"string","category":"bug|security|performance|practice|readability|duplication|edge_case","severity":"low|medium|high|critical","line":1,"column":1,"explanation":"string","suggested_fix":"string"}}],"improved_code":"string or null"}}
 Report actionable problems: bugs and logical errors, security issues, inefficient code, poor coding practices, readability problems, unnecessary or repeated code, and unhandled edge cases. "type" is a short title for the problem, e.g. "SQL injection". "category" is the kind of problem: bug (bugs and logical errors), security, performance (inefficient code), practice (poor coding practices), readability, duplication (unnecessary or repeated code) or edge_case (unhandled edge cases).
-Each source line below starts with its line number and "| "; use that number for "line". The numbers are not part of the code: leave them out of improved_code.
-Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
+{lines_rule}Leave every comment exactly as written: in improved_code keep each one word for word, and do not suggest changes to comments.
 
 SOURCE:
 ```{language}
-{numbered}
+{body}
 ```"""
 
 
@@ -120,7 +124,7 @@ def review(url, model, key, case, timeout):
     body = json.dumps({
         "model": model,
         "messages": [{"role": "system", "content": "You are a precise code reviewer."},
-                     {"role": "user", "content": prompt(case["code"], case["language"], case["file"])}],
+                     {"role": "user", "content": prompt(case["code"], case["language"], case["file"], NUMBERED)}],
         "temperature": 0, "reasoning_effort": "none", "response_format": {"type": "json_object"},
     }).encode()
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
@@ -163,6 +167,7 @@ def evaluate(name, url, key, timeout, cases, checkpoint=None):
         "name": name,
         "recall": caught_total / bugs_scored if bugs_scored else None,  # failed files don't count as misses
         "precision": (findings - false_alarms) / findings if findings else None,
+        "precision_unique": caught_total / findings if findings else None,  # each bug counts once; repeats are false alarms
         "avg_seconds": round(sum(seconds) / len(seconds), 1) if seconds else None,
         "failures": sum(1 for r in results if r.get("error")),
         "results": results,
@@ -172,7 +177,10 @@ def evaluate(name, url, key, timeout, cases, checkpoint=None):
 def main():
     # `run_eval.py` scores our own CASES; `run_eval.py quixbugs|juliet` scores a benchmark from datasets/.
     # `--main-only` skips the backup model; `--timeout=SECONDS` overrides MODEL_TIMEOUT_MS for slow machines.
+    # `--no-line-numbers` is the ablation: the prompt without line numbers, written to eval-...-nolines.json.
+    global NUMBERED
     args = sys.argv[1:]
+    NUMBERED = "--no-line-numbers" not in args
     bench = next((a for a in args if a in ("quixbugs", "juliet")), None)
     if bench:
         ds = json.loads((Path(__file__).parent / "datasets" / f"{bench}.json").read_text())
@@ -180,6 +188,8 @@ def main():
     else:
         cases, out = CASES, OUT
         suite = {"title": "Our test set", "description": f"{len(CASES)} files with {sum(len(c['bugs']) for c in CASES)} known bugs that we wrote."}
+    if not NUMBERED:
+        out = out.with_name(f"{out.stem}-nolines.json")
     env = tomllib.loads((ROOT / "worker" / "wrangler.toml").read_text())["vars"]
     timeout = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--timeout=")), int(env.get("MODEL_TIMEOUT_MS", 120000)) / 1000)
     models = [(env["MODEL_NAME"], env["MODEL_URL"], None)]
@@ -199,6 +209,7 @@ def main():
         "suite": suite,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "tolerance": TOLERANCE,
+        "line_numbers": NUMBERED,
         "total_bugs": sum(len(c["bugs"]) for c in cases),
         "cases": [{"file": c["file"], "title": c.get("title"), "language": c["language"], "code": c["code"], "bugs": c["bugs"]} for c in cases],
         "models": scores,
@@ -206,9 +217,9 @@ def main():
     shutil.rmtree(PROGRESS, ignore_errors=True)  # finished: next run starts fresh
 
     pct = lambda x: "-" if x is None else f"{x:.0%}"
-    print(f"\n{'model':<40}{'caught':>8}{'real':>8}{'s/file':>8}{'failed':>8}")
+    print(f"\n{'model':<40}{'caught':>8}{'real':>8}{'unique':>8}{'s/file':>8}{'failed':>8}")
     for m in scores:
-        print(f"{m['name']:<40}{pct(m['recall']):>8}{pct(m['precision']):>8}{m['avg_seconds'] or '-':>8}{m['failures']:>8}")
+        print(f"{m['name']:<40}{pct(m['recall']):>8}{pct(m['precision']):>8}{pct(m['precision_unique']):>8}{m['avg_seconds'] or '-':>8}{m['failures']:>8}")
     print(f"\nWrote {out.relative_to(ROOT)}")
 
 

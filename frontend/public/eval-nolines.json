@@ -1,0 +1,419 @@
+{
+  "suite": {
+    "title": "Our test set",
+    "description": "6 files with 13 known bugs that we wrote."
+  },
+  "generated_at": "2026-11-19T08:22:29.485355+00:00",
+  "tolerance": 1,
+  "line_numbers": false,
+  "total_bugs": 13,
+  "cases": [
+    {
+      "file": "login.py",
+      "title": null,
+      "language": "python",
+      "code": "import sqlite3\n\ndef login(db, uid, pw):\n    q = f\"SELECT * FROM users WHERE id={uid}\"\n    row = db.execute(q).fetchone()\n\n    if row[2] == pw:\n        return True\n\n    print(\"bad login\", uid, pw)\n    return False\n",
+      "bugs": [
+        {
+          "line": 4,
+          "label": "SQL injection"
+        },
+        {
+          "line": 7,
+          "label": "Plain-text password / missing row"
+        },
+        {
+          "line": 10,
+          "label": "Password in logs"
+        }
+      ]
+    },
+    {
+      "file": "cart.js",
+      "title": null,
+      "language": "javascript",
+      "code": "var discount = 0.1;\n\nfunction total(items) {\n  let sum = 0;\n  for (let i = 0; i <= items.length; i++) {\n    sum += items[i].price;\n  }\n  if (sum == \"0\") return null;\n  return sum - sum * discount;\n}\n",
+      "bugs": [
+        {
+          "line": 1,
+          "label": "Global variable"
+        },
+        {
+          "line": 5,
+          "label": "Off by one"
+        },
+        {
+          "line": 8,
+          "label": "Loose equality"
+        }
+      ]
+    },
+    {
+      "file": "greet.c",
+      "title": null,
+      "language": "c",
+      "code": "#include <stdio.h>\n#include <string.h>\n\nvoid greet(const char *name) {\n    char buf[16];\n    strcpy(buf, name);\n    strcat(buf, \"!\");\n\n    printf(buf);\n}\n\nint main(int argc, char **argv) {\n    greet(argv[1]);\n}\n",
+      "bugs": [
+        {
+          "line": 6,
+          "label": "Buffer overflow"
+        },
+        {
+          "line": 9,
+          "label": "Format string bug"
+        },
+        {
+          "line": 13,
+          "label": "Missing argument check"
+        }
+      ]
+    },
+    {
+      "file": "Stats.java",
+      "title": null,
+      "language": "java",
+      "code": "import java.util.List;\n\npublic class Stats {\n    public static double average(List<Integer> xs) {\n        int sum = 0;\n        for (int x : xs) sum += x;\n        return sum / xs.size();\n    }\n\n    public static String first(List<String> names) {\n        return names.get(0).trim();\n    }\n}\n",
+      "bugs": [
+        {
+          "line": 7,
+          "label": "Integer division / empty list"
+        },
+        {
+          "line": 11,
+          "label": "Empty list or null name"
+        }
+      ]
+    },
+    {
+      "file": "cat.go",
+      "title": null,
+      "language": "go",
+      "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n\tf, _ := os.Open(os.Args[1])\n\tbuf := make([]byte, 100)\n\tf.Read(buf)\n\tfmt.Println(string(buf))\n}\n",
+      "bugs": [
+        {
+          "line": 9,
+          "label": "Ignored open error / missing arg"
+        },
+        {
+          "line": 11,
+          "label": "Ignored read result"
+        }
+      ]
+    },
+    {
+      "file": "clamp.py",
+      "title": null,
+      "language": "python",
+      "code": "def clamp(value: float, low: float, high: float) -> float:\n    \"\"\"Limit value to the range [low, high].\"\"\"\n    if low > high:\n        raise ValueError(\"low must not exceed high\")\n    return max(low, min(value, high))\n",
+      "bugs": []
+    }
+  ],
+  "models": [
+    {
+      "name": "qwen3.8-27b-uncensored-mtp:latest",
+      "recall": 0.7692307692307693,
+      "precision": 0.8148148148148148,
+      "precision_unique": 0.37037037037037035,
+      "avg_seconds": 44.0,
+      "failures": 0,
+      "results": [
+        {
+          "caught": 3,
+          "extra": 0,
+          "missed": [],
+          "seconds": 45.1,
+          "findings": [
+            {
+              "line": 3,
+              "severity": "critical",
+              "type": "SQL injection",
+              "category": "security",
+              "explanation": "The query uses an f-string to interpolate `uid` directly into the SQL statement, making it vulnerable to SQL injection if `uid` is not sanitized.",
+              "suggested_fix": "Use parameterized queries: `q = \"SELECT * FROM users WHERE id=?\"` and `db.execute(q, (uid,))`.",
+              "real": true
+            },
+            {
+              "line": 6,
+              "severity": "high",
+              "type": "Plaintext password comparison",
+              "category": "security",
+              "explanation": "The password is compared directly against the database value, implying passwords are stored in plaintext. This is insecure; passwords should be hashed.",
+              "suggested_fix": "Hash the input password and compare it to the stored hash, e.g., using `hashlib` or `bcrypt`.",
+              "real": true
+            },
+            {
+              "line": 9,
+              "severity": "medium",
+              "type": "Sensitive data in logs",
+              "category": "security",
+              "explanation": "The password `pw` is printed to the console, which may expose sensitive information in logs.",
+              "suggested_fix": "Use a logging module and avoid logging the password, or log a masked version.",
+              "real": true
+            },
+            {
+              "line": 5,
+              "severity": "medium",
+              "type": "Unhandled edge case: no user found",
+              "category": "edge_case",
+              "explanation": "If no user is found, `row` will be `None`, and accessing `row[2]` will raise an `AttributeError`.",
+              "suggested_fix": "Check if `row` is `None` before accessing its elements, e.g., `if row and row[2] == pw:`.",
+              "real": true
+            },
+            {
+              "line": 6,
+              "severity": "low",
+              "type": "Magic number for column index",
+              "category": "readability",
+              "explanation": "Using `row[2]` to access the password column is not self-explanatory and is fragile if the table schema changes.",
+              "suggested_fix": "Use a named column or a dictionary-like access if supported, or define a constant for the column index.",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 2,
+          "extra": 1,
+          "missed": [
+            "Loose equality"
+          ],
+          "seconds": 36.7,
+          "findings": [
+            {
+              "line": 4,
+              "severity": "critical",
+              "type": "Off-by-one error",
+              "category": "bug",
+              "explanation": "The loop condition `i <= items.length` causes the loop to iterate one time too many, accessing `items[items.length]` which is `undefined`. This leads to a `TypeError` when trying to access `.price`.",
+              "suggested_fix": "Change the condition to `i < items.length`.",
+              "real": true
+            },
+            {
+              "line": 6,
+              "severity": "medium",
+              "type": "Loose equality with string",
+              "category": "bug",
+              "explanation": "Using `==` to compare a number (`sum`) with a string (`\"0\"`) relies on type coercion. While it works for `0`, it is less precise than strict equality and can be confusing. Additionally, if `sum` is `NaN` (due to invalid prices), it won't equal `\"0\"`.",
+              "suggested_fix": "Use strict equality `===` and compare against the number `0`: `if (sum === 0)`.",
+              "real": true
+            },
+            {
+              "line": 1,
+              "severity": "low",
+              "type": "Global variable",
+              "category": "practice",
+              "explanation": "The variable `discount` is declared in the global scope, which can lead to naming conflicts and makes the function less modular.",
+              "suggested_fix": "Move `discount` inside the `total` function or pass it as a parameter.",
+              "real": true
+            },
+            {
+              "line": 3,
+              "severity": "medium",
+              "type": "Missing input validation",
+              "category": "edge_case",
+              "explanation": "The function does not check if `items` is an array or if each item has a valid `price` property. If `items` is `null` or an item lacks `price`, the function will throw an error.",
+              "suggested_fix": "Add checks to ensure `items` is an array and each item has a numeric `price`.",
+              "real": false
+            }
+          ]
+        },
+        {
+          "caught": 1,
+          "extra": 1,
+          "missed": [
+            "Format string bug",
+            "Missing argument check"
+          ],
+          "seconds": 48.7,
+          "findings": [
+            {
+              "line": 5,
+              "severity": "high",
+              "type": "Buffer overflow",
+              "category": "security",
+              "explanation": "strcpy copies the entire string 'name' into a fixed-size buffer of 16 bytes without checking the length. If 'name' is longer than 14 characters (leaving room for the exclamation mark and null terminator), it will overflow the buffer.",
+              "suggested_fix": "Use strncpy or snprintf to limit the copy size, or dynamically allocate the buffer based on the length of 'name'.",
+              "real": true
+            },
+            {
+              "line": 7,
+              "severity": "high",
+              "type": "Format string vulnerability",
+              "category": "security",
+              "explanation": "printf is called with 'buf' as the format string. If 'buf' contains format specifiers (e.g., %s, %x), it can lead to information leaks or crashes. Since 'buf' is derived from user input, this is a security risk.",
+              "suggested_fix": "Use printf(\"%s\", buf) to treat 'buf' as a literal string rather than a format string.",
+              "real": true
+            },
+            {
+              "line": 11,
+              "severity": "medium",
+              "type": "Null pointer dereference",
+              "category": "edge_case",
+              "explanation": "The code accesses argv[1] without checking if argc is greater than 1. If the program is run without arguments, argv[1] will be NULL, causing a crash in greet().",
+              "suggested_fix": "Check if argc < 2 before calling greet, or handle the case where argv[1] is NULL.",
+              "real": false
+            },
+            {
+              "line": 6,
+              "severity": "low",
+              "type": "Inefficient string concatenation",
+              "category": "performance",
+              "explanation": "strcat is used to append '!' to the buffer. This is less efficient than using snprintf or manually appending the character, especially since the buffer size is small and known.",
+              "suggested_fix": "Use snprintf(buf, sizeof(buf), \"%s!\", name) to combine copying and appending in one step.",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 2,
+          "extra": 1,
+          "missed": [],
+          "seconds": 50.1,
+          "findings": [
+            {
+              "line": 6,
+              "severity": "high",
+              "type": "Integer division",
+              "category": "bug",
+              "explanation": "The method returns a double, but `sum` and `xs.size()` are both integers. This causes integer division, truncating the decimal part of the result.",
+              "suggested_fix": "Cast `sum` to double before division: `return (double) sum / xs.size();`",
+              "real": true
+            },
+            {
+              "line": 4,
+              "severity": "medium",
+              "type": "Integer overflow",
+              "category": "edge_case",
+              "explanation": "Using `int` for the sum can lead to overflow if the list contains many large integers.",
+              "suggested_fix": "Use `long` for the sum: `long sum = 0;`",
+              "real": false
+            },
+            {
+              "line": 6,
+              "severity": "medium",
+              "type": "Null pointer exception",
+              "category": "edge_case",
+              "explanation": "If `xs` is null, calling `xs.size()` will throw a NullPointerException.",
+              "suggested_fix": "Add a null check for `xs` at the beginning of the method.",
+              "real": true
+            },
+            {
+              "line": 6,
+              "severity": "medium",
+              "type": "Division by zero",
+              "category": "edge_case",
+              "explanation": "If `xs` is empty, `xs.size()` is 0, leading to a division by zero (ArithmeticException for int, or Infinity for double).",
+              "suggested_fix": "Check if `xs.isEmpty()` and return 0.0 or throw a specific exception.",
+              "real": true
+            },
+            {
+              "line": 10,
+              "severity": "medium",
+              "type": "Null pointer exception",
+              "category": "edge_case",
+              "explanation": "If `names` is null, calling `names.get(0)` will throw a NullPointerException.",
+              "suggested_fix": "Add a null check for `names`.",
+              "real": true
+            },
+            {
+              "line": 10,
+              "severity": "medium",
+              "type": "Index out of bounds",
+              "category": "edge_case",
+              "explanation": "If `names` is empty, `names.get(0)` will throw an IndexOutOfBoundsException.",
+              "suggested_fix": "Check if `names.isEmpty()` before accessing index 0.",
+              "real": true
+            },
+            {
+              "line": 10,
+              "severity": "medium",
+              "type": "Null pointer exception",
+              "category": "edge_case",
+              "explanation": "If the first element in `names` is null, calling `.trim()` will throw a NullPointerException.",
+              "suggested_fix": "Check if `names.get(0)` is null before calling `.trim()`.",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 2,
+          "extra": 0,
+          "missed": [],
+          "seconds": 46.2,
+          "findings": [
+            {
+              "line": 9,
+              "severity": "high",
+              "type": "Unchecked error from os.Open",
+              "category": "bug",
+              "explanation": "The error returned by os.Open is ignored. If the file does not exist or cannot be opened, f will be nil, causing a panic when f.Read is called.",
+              "suggested_fix": "Check the error: f, err := os.Open(os.Args[1]); if err != nil { ... }",
+              "real": true
+            },
+            {
+              "line": 11,
+              "severity": "high",
+              "type": "Unchecked error from f.Read",
+              "category": "bug",
+              "explanation": "The error returned by f.Read is ignored. If the read fails, the buffer may contain partial or stale data, and the program will not report the failure.",
+              "suggested_fix": "Check the error: n, err := f.Read(buf); if err != nil { ... }",
+              "real": true
+            },
+            {
+              "line": 9,
+              "severity": "medium",
+              "type": "File not closed",
+              "category": "practice",
+              "explanation": "The file handle is never closed, which can lead to resource leaks, especially if this code is refactored into a loop or function.",
+              "suggested_fix": "Use defer f.Close() after successfully opening the file.",
+              "real": true
+            },
+            {
+              "line": 10,
+              "severity": "medium",
+              "type": "Fixed buffer size",
+              "category": "edge_case",
+              "explanation": "The buffer is fixed at 100 bytes. If the file is larger, only the first 100 bytes are read. If the file is smaller, the rest of the buffer contains zero bytes, which are printed as null characters.",
+              "suggested_fix": "Use io.ReadAll or a larger buffer, and only print the first n bytes where n is the number of bytes read.",
+              "real": true
+            },
+            {
+              "line": 9,
+              "severity": "medium",
+              "type": "Unchecked os.Args length",
+              "category": "edge_case",
+              "explanation": "If no command-line argument is provided, os.Args[1] will cause an index out of range panic.",
+              "suggested_fix": "Check len(os.Args) > 1 before accessing os.Args[1].",
+              "real": true
+            }
+          ]
+        },
+        {
+          "caught": 0,
+          "extra": 2,
+          "missed": [],
+          "seconds": 37.1,
+          "findings": [
+            {
+              "line": 4,
+              "severity": "medium",
+              "type": "Missing type check for NaN",
+              "category": "edge_case",
+              "explanation": "If `value` is `float('nan')`, `min(value, high)` returns `nan` (because `nan < high` is False), and `max(low, nan)` returns `nan` (because `low < nan` is False). Thus, `clamp(nan, 0, 1)` returns `nan` instead of raising an error or handling it explicitly. Similarly, if `low` or `high` is `nan`, the behavior is undefined/unexpected.",
+              "suggested_fix": "Add explicit checks for `math.isnan` on `value`, `low`, and `high` at the beginning of the function, or document that NaN inputs are allowed to pass through.",
+              "real": false
+            },
+            {
+              "line": 4,
+              "severity": "low",
+              "type": "Missing type check for infinity",
+              "category": "edge_case",
+              "explanation": "If `low` is `-inf` and `high` is `inf`, the function works correctly. However, if `value` is `inf` and `high` is finite, it clamps to `high`. If `value` is `-inf` and `low` is finite, it clamps to `low`. This is generally expected, but if `low` is `inf` and `high` is `inf`, `low > high` is False, so it returns `inf`. This might be surprising if the user expects a finite range. More critically, if `low` is `inf` and `high` is `inf`, `max(inf, min(value, inf))` returns `inf`. This is logically consistent but might warrant a check if finite bounds are expected.",
+              "suggested_fix": "Consider adding checks for `math.isinf` if finite bounds are strictly required, or document the behavior with infinite bounds.",
+              "real": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

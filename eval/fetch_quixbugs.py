@@ -1,6 +1,7 @@
-"""Downloads a fixed set of QuixBugs programs (Lin et al. 2017, MIT) and writes datasets/quixbugs.json.
+"""Downloads the QuixBugs Python programs (Lin et al. 2017, MIT) and writes datasets/quixbugs.json.
 
 Each program has one known bug; its line comes from diffing the buggy file against the official fix.
+All 40 programs are used except powerset, whose fix changes more than one line.
 Run from eval/:  uv run python fetch_quixbugs.py
 """
 import difflib, json, urllib.request
@@ -8,8 +9,12 @@ from pathlib import Path
 
 COMMIT = "4257f44b0ff1181dedaedee6a447e133219fcebf"
 RAW = f"https://raw.githubusercontent.com/jkoppel/QuixBugs/{COMMIT}"
-PROGRAMS = ["bitcount", "breadth_first_search", "detect_cycle", "gcd", "hanoi", "is_valid_parenthesization", "knapsack", "kth",
-            "levenshtein", "mergesort", "quicksort", "sieve", "sqrt", "to_base"]
+PROGRAMS = ["bitcount", "breadth_first_search", "bucketsort", "depth_first_search", "detect_cycle", "find_first_in_sorted",
+            "find_in_sorted", "flatten", "gcd", "get_factors", "hanoi", "is_valid_parenthesization", "kheapsort", "knapsack",
+            "kth", "lcs_length", "levenshtein", "lis", "longest_common_subsequence", "max_sublist_sum", "mergesort",
+            "minimum_spanning_tree", "next_palindrome", "next_permutation", "pascal", "possible_change", "quicksort",
+            "reverse_linked_list", "rpn_eval", "shortest_path_length", "shortest_path_lengths", "shortest_paths",
+            "shunting_yard", "sieve", "sqrt", "subsequences", "to_base", "topological_ordering", "wrap"]
 OUT = Path(__file__).parent / "datasets" / "quixbugs.json"
 
 
