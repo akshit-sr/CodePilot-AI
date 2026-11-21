@@ -134,7 +134,7 @@ recorded only ask for the explanation score; rerun `run_eval.py` to rate fixes.
 
 The page also has two benchmark tabs:
 
-- "QuixBugs benchmark": 14 programs from QuixBugs (Lin et al., SPLASH 2017,
+- "QuixBugs benchmark": 39 Python programs from QuixBugs (Lin et al., SPLASH 2017,
   MIT), each with one known bug located by diffing against the official fix.
 - "NIST Juliet": 10 test cases from NIST's Juliet Test Suite for Java
   1.3 (samate.nist.gov/SARD), one per CWE, with comments and hints stripped.
