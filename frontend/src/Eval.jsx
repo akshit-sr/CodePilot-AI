@@ -61,8 +61,6 @@ function Charts({ data }) {
           {/* The two quality rows are rubric scores (eval/rate.py); they appear once someone has rated, and say who. */}
           {[
             ["Bugs caught", m => m.recall],
-            ["Findings on a known bug", m => m.precision],
-            ["Findings on a known bug, each bug counted once", uniquePrecision],
             [`Explanation quality (rated by ${rater})`, m => m.quality?.explanation],
             [`Fix quality (rated by ${rater})`, m => m.quality?.fix],
           ]
