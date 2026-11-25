@@ -102,7 +102,7 @@ Without the API key anyone with the tunnel URL could use the model; keep
 `eval/run_eval.py` sends 6 files with known bugs to both models in
 `worker/wrangler.toml` and scores them (bugs caught, findings that were real,
 seconds per file). It writes `frontend/public/eval.json`, which the site shows
-at `#eval` (the "Evaluate model" button in the top bar).
+at `#eval` (linked from the landing page).
 
 ```powershell
 cd eval

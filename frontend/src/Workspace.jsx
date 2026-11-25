@@ -149,9 +149,6 @@ export default function Workspace() {
             {new Date(usage.resets_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
         )}
-        <a className="navlink" href="#eval">
-          Evaluate model
-        </a>
         <a
           className="navlink"
           href="#"
